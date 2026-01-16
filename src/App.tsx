@@ -1,16 +1,48 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Lock, Mail } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 function App() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const navigate = useNavigate()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    // Verificar se já está autenticado
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate('/dashboard')
+      }
+    })
+  }, [navigate])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Login attempt:', { email, password })
+    setLoading(true)
+    setError('')
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) throw error
+
+      if (data.session) {
+        navigate('/dashboard')
+      }
+    } catch (error: any) {
+      setError(error.message || 'Erro ao fazer login')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -122,12 +154,20 @@ function App() {
                 </div>
               </div>
 
+              {/* Error Message */}
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg">
+                  <p className="text-red-400 text-sm text-center">{error}</p>
+                </div>
+              )}
+
               {/* Submit Button */}
               <Button 
                 type="submit" 
-                className="w-full h-12 lg:h-14 text-base font-semibold bg-linear-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-800 hover:via-amber-700 hover:to-amber-800 text-amber-50 shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg mt-4 lg:mt-6"
+                disabled={loading}
+                className="w-full h-12 lg:h-14 text-base font-semibold bg-linear-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-800 hover:via-amber-700 hover:to-amber-800 text-amber-50 shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg mt-4 lg:mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Entrar no sistema
+                {loading ? 'Entrando...' : 'Entrar no sistema'}
               </Button>
             </form>
 
