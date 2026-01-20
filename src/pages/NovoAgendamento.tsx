@@ -56,90 +56,144 @@ export default function NovoAgendamento() {
       }
     })
 
-    // Carregar procedimentos do localStorage
-    const stored = localStorage.getItem('procedimentos')
-    if (stored) {
-      setProcedimentos(JSON.parse(stored))
-    }
+    // Carregar procedimentos do Supabase
+    loadProcedimentos()
 
     // Verificar se há parâmetros na query string (quando vem da página de Clientes)
     const searchParams = new URLSearchParams(location.search)
+    const clienteId = searchParams.get('cliente')
     const clienteNome = searchParams.get('nome')
     
     // Se estiver editando, carregar dados do agendamento
-    if (isEditMode) {
-      // Aqui você carregaria os dados do agendamento do Supabase
-      // Por enquanto, dados mockados
+    if (isEditMode && id) {
+      loadAgendamento(id)
+    } else if (clienteId) {
+      // Se veio da página de Clientes, preencher o ID do cliente
+      const nomeDecodificado = clienteNome ? decodeURIComponent(clienteNome) : ''
       setFormData(prev => ({
         ...prev,
-        cliente: prev.cliente,
-        procedimento: '1',
-        data: '2026-01-24',
-        horario: '14:00',
-        observacoes: 'Primeira sessão do tratamento'
+        cliente: clienteId,
+        clienteNome: nomeDecodificado
       }))
-    } else if (clienteNome) {
-      // Se veio da página de Clientes, preencher o nome do cliente
-      setFormData(prev => ({
-        ...prev,
-        cliente: decodeURIComponent(clienteNome)
-      }))
+      
+      // Se não tiver nome, carregar do banco
+      if (!nomeDecodificado) {
+        loadClienteNome(clienteId)
+      }
     }
 
     return () => subscription.unsubscribe()
   }, [navigate, id, isEditMode, location.search])
 
+  const loadProcedimentos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('procedimentos')
+        .select('*')
+        .order('descricao', { ascending: true })
+
+      if (error) throw error
+      if (data) {
+        setProcedimentos(data)
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar procedimentos:', error)
+    }
+  }
+
+  const loadClienteNome = async (clienteId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('nome')
+        .eq('id', clienteId)
+        .single()
+
+      if (error) throw error
+      if (data) {
+        setFormData(prev => ({
+          ...prev,
+          clienteNome: data.nome
+        }))
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar nome do cliente:', error)
+    }
+  }
+
+  const loadAgendamento = async (agendamentoId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .select(`
+          *,
+          clientes!agendamentos_cliente_id_fkey(nome),
+          procedimentos!agendamentos_procedimento_id_fkey(descricao)
+        `)
+        .eq('id', agendamentoId)
+        .single()
+
+      if (error) throw error
+      if (data) {
+        // Data já vem em formato ISO do banco
+        const dataISO = data.data
+        
+        const clienteData = Array.isArray(data.clientes) ? data.clientes[0] : data.clientes
+        
+        setFormData({
+          cliente: data.cliente_id,
+          clienteNome: clienteData?.nome || '',
+          procedimento: data.procedimento_id || '',
+          data: dataISO,
+          horario: data.horario,
+          observacoes: data.observacoes || ''
+        })
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar agendamento:', error)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!formData.cliente || !formData.procedimento || !formData.data || !formData.horario) {
+      alert('Por favor, preencha todos os campos obrigatórios.')
+      return
+    }
+    
     setLoading(true)
 
     try {
-      if (isEditMode) {
-        // Aqui você fará a atualização no Supabase
-        // await supabase.from('agendamentos').update(formData).eq('id', id)
-        
-        // Atualizar no localStorage também
-        const stored = localStorage.getItem('agendamentos')
-        if (stored) {
-          const agendamentos: any[] = JSON.parse(stored)
-          const updated = agendamentos.map(ag => 
-            ag.id === parseInt(id || '0') 
-              ? { ...ag, ...formData, servico: procedimentos.find(p => p.id === formData.procedimento)?.descricao || ag.servico }
-              : ag
-          )
-          localStorage.setItem('agendamentos', JSON.stringify(updated))
-        }
+      const agendamentoData = {
+        cliente_id: formData.cliente,
+        procedimento_id: formData.procedimento,
+        data: formData.data,
+        horario: formData.horario,
+        observacoes: formData.observacoes || null,
+        status: 'Agendado' as const
+      }
+
+      if (isEditMode && id) {
+        // Atualizar agendamento existente
+        const { error } = await supabase
+          .from('agendamentos')
+          .update(agendamentoData)
+          .eq('id', id)
+
+        if (error) throw error
       } else {
         // Criar novo agendamento
-        const procedimentoSelecionado = procedimentos.find(p => p.id === formData.procedimento)
-        const novoAgendamento = {
-          id: Date.now(), // ID temporário - será substituído pelo ID do Supabase
-          cliente: formData.cliente,
-          servico: procedimentoSelecionado?.descricao || 'Procedimento não selecionado',
-          data: new Date(formData.data).toLocaleDateString('pt-BR'),
-          horario: formData.horario,
-          status: 'Agendado' as const, // Sempre criar com status "Agendado"
-          telefone: '(11) 99999-0000' // Este será preenchido quando integrar com Supabase
-        }
+        const { error } = await supabase
+          .from('agendamentos')
+          .insert([agendamentoData])
 
-        // Aqui você fará a inserção no Supabase
-        // const { data, error } = await supabase.from('agendamentos').insert([novoAgendamento])
-        // if (error) throw error
-
-        // Salvar no localStorage também (temporário até integrar com Supabase)
-        const stored = localStorage.getItem('agendamentos')
-        if (stored) {
-          const agendamentos: any[] = JSON.parse(stored)
-          agendamentos.push(novoAgendamento)
-          localStorage.setItem('agendamentos', JSON.stringify(agendamentos))
-        } else {
-          localStorage.setItem('agendamentos', JSON.stringify([novoAgendamento]))
-        }
+        if (error) throw error
       }
       
       navigate('/agendamentos')
     } catch (error: any) {
       console.error('Erro ao salvar agendamento:', error)
+      alert('Erro ao salvar agendamento. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -292,7 +346,7 @@ export default function NovoAgendamento() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-slate-700 mb-6">Agendando para: <span className="font-semibold">{formData.cliente}</span></p>
+              <p className="text-slate-700 mb-6">Agendando para: <span className="font-semibold">{formData.clienteNome || formData.cliente}</span></p>
               
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

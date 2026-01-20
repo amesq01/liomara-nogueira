@@ -24,7 +24,7 @@ import {
 type Status = 'Todos' | 'Agendado' | 'Concluído' | 'Cancelado'
 
 interface Agendamento {
-  id: number
+  id: string
   cliente: string
   servico: string
   data: string
@@ -41,72 +41,51 @@ export default function Agendamentos() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Dados mockados iniciais - substituir por dados reais do Supabase
-  const agendamentosIniciais: Agendamento[] = [
-    {
-      id: 1,
-      cliente: 'Ana Paula Silva',
-      servico: 'Limpeza de Pele',
-      data: '24/01/2026',
-      horario: '14:00',
-      status: 'Agendado',
-      telefone: '(11) 99999-1111'
-    },
-    {
-      id: 2,
-      cliente: 'Maria Santos',
-      servico: 'Microagulhamento',
-      data: '24/01/2026',
-      horario: '16:30',
-      status: 'Agendado',
-      telefone: '(11) 99999-2222'
-    },
-    {
-      id: 3,
-      cliente: 'Juliana Costa',
-      servico: 'Tratamento Facial',
-      data: '25/01/2026',
-      horario: '09:00',
-      status: 'Concluído',
-      telefone: '(11) 99999-3333'
-    },
-    {
-      id: 4,
-      cliente: 'Carla Oliveira',
-      servico: 'Depilação',
-      data: '25/01/2026',
-      horario: '11:00',
-      status: 'Agendado',
-      telefone: '(11) 99999-4444'
-    },
-    {
-      id: 5,
-      cliente: 'Fernanda Lima',
-      servico: 'Massagem Relaxante',
-      data: '26/01/2026',
-      horario: '15:00',
-      status: 'Cancelado',
-      telefone: '(11) 99999-5555'
-    }
-  ]
-
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
+  const [loading, setLoading] = useState(false)
 
-  // Carregar agendamentos do localStorage ou usar os iniciais
-  const loadAgendamentos = () => {
-    const stored = localStorage.getItem('agendamentos')
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        setAgendamentos(parsed)
-      } catch {
-        // Se houver erro ao parsear, usar os iniciais
-        setAgendamentos(agendamentosIniciais)
-        localStorage.setItem('agendamentos', JSON.stringify(agendamentosIniciais))
+  // Carregar agendamentos do Supabase
+  const loadAgendamentos = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .select(`
+          *,
+          clientes!agendamentos_cliente_id_fkey(nome, telefone),
+          procedimentos!agendamentos_procedimento_id_fkey(descricao)
+        `)
+        .order('data', { ascending: true })
+        .order('horario', { ascending: true })
+
+      if (error) throw error
+      if (data) {
+        // Transformar dados do Supabase para o formato esperado
+        const agendamentosFormatados: Agendamento[] = data.map(ag => {
+          // Converter data de formato ISO para formato brasileiro
+          const dataObj = new Date(ag.data + 'T00:00:00')
+          const dataFormatada = dataObj.toLocaleDateString('pt-BR')
+          
+          // Acessar dados relacionados corretamente
+          const clienteData = Array.isArray(ag.clientes) ? ag.clientes[0] : ag.clientes
+          const procedimentoData = Array.isArray(ag.procedimentos) ? ag.procedimentos[0] : ag.procedimentos
+          
+          return {
+            id: ag.id,
+            cliente: clienteData?.nome || 'Cliente não encontrado',
+            servico: procedimentoData?.descricao || 'Procedimento não encontrado',
+            data: dataFormatada,
+            horario: ag.horario,
+            status: ag.status,
+            telefone: clienteData?.telefone || ''
+          }
+        })
+        setAgendamentos(agendamentosFormatados)
       }
-    } else {
-      setAgendamentos(agendamentosIniciais)
-      localStorage.setItem('agendamentos', JSON.stringify(agendamentosIniciais))
+    } catch (error: any) {
+      console.error('Erro ao carregar agendamentos:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -121,38 +100,23 @@ export default function Agendamentos() {
     }
   }, [location.pathname])
 
-  // Escutar mudanças no localStorage (quando um novo agendamento é criado em outra aba/página)
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const stored = localStorage.getItem('agendamentos')
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored)
-          setAgendamentos(parsed)
-        } catch {
-          // Ignora erros
-        }
-      }
+  const updateStatus = async (id: string, newStatus: 'Concluído' | 'Cancelado') => {
+    try {
+      const { error } = await supabase
+        .from('agendamentos')
+        .update({ status: newStatus })
+        .eq('id', id)
+
+      if (error) throw error
+      
+      // Atualizar estado local
+      setAgendamentos(prev => 
+        prev.map(ag => ag.id === id ? { ...ag, status: newStatus } : ag)
+      )
+    } catch (error: any) {
+      console.error('Erro ao atualizar status:', error)
+      alert('Erro ao atualizar status do agendamento. Tente novamente.')
     }
-
-    window.addEventListener('storage', handleStorageChange)
-    // Também verificar quando a página recebe foco (para atualizar se outra aba criou um agendamento)
-    window.addEventListener('focus', handleStorageChange)
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('focus', handleStorageChange)
-    }
-  }, [])
-
-  const updateStatus = (id: number, newStatus: 'Concluído' | 'Cancelado') => {
-    setAgendamentos(prev => {
-      const updated = prev.map(ag => ag.id === id ? { ...ag, status: newStatus } : ag)
-      localStorage.setItem('agendamentos', JSON.stringify(updated))
-      return updated
-    })
-    // Aqui você fará a atualização no Supabase
-    // await supabase.from('agendamentos').update({ status: newStatus }).eq('id', id)
   }
 
   // Filtrar e ordenar agendamentos

@@ -47,45 +47,71 @@ export default function Procedimentos() {
       }
     })
 
-    // Carregar procedimentos do localStorage (temporário até integrar com Supabase)
-    const stored = localStorage.getItem('procedimentos')
-    if (stored) {
-      setProcedimentos(JSON.parse(stored))
-    }
+    // Carregar procedimentos do Supabase
+    loadProcedimentos()
 
     return () => subscription.unsubscribe()
   }, [navigate])
+
+  const loadProcedimentos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('procedimentos')
+        .select('*')
+        .order('descricao', { ascending: true })
+
+      if (error) throw error
+      if (data) {
+        setProcedimentos(data)
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar procedimentos:', error)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const novoProcedimento = {
-        id: Date.now().toString(),
-        descricao: formData.descricao
+      const { data, error } = await supabase
+        .from('procedimentos')
+        .insert([{ descricao: formData.descricao }])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        setProcedimentos(prev => [...prev, data])
+        setFormData({ descricao: '' })
       }
-
-      const updated = [...procedimentos, novoProcedimento]
-      setProcedimentos(updated)
-      localStorage.setItem('procedimentos', JSON.stringify(updated))
-
-      // Aqui você fará a inserção no Supabase
-      // const { data, error } = await supabase.from('procedimentos').insert([formData])
-      // if (error) throw error
-
-      setFormData({ descricao: '' })
     } catch (error: any) {
       console.error('Erro ao cadastrar procedimento:', error)
+      alert('Erro ao cadastrar procedimento. Tente novamente.')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleDelete = (id: string) => {
-    const updated = procedimentos.filter(p => p.id !== id)
-    setProcedimentos(updated)
-    localStorage.setItem('procedimentos', JSON.stringify(updated))
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este procedimento?')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('procedimentos')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+
+      setProcedimentos(prev => prev.filter(p => p.id !== id))
+    } catch (error: any) {
+      console.error('Erro ao excluir procedimento:', error)
+      alert('Erro ao excluir procedimento. Tente novamente.')
+    }
   }
 
   const isActive = (path: string) => location.pathname === path

@@ -30,64 +30,13 @@ export default function EditarCliente() {
   const location = useLocation()
   const { id } = useParams()
 
-  // Dados mockados do cliente - substituir por dados reais do Supabase
-  const clientes = [
-    {
-      id: '1',
-      nome: 'Ana Paula Silva',
-      telefone: '(11) 99999-1111',
-      endereco: 'Rua das Flores, 123, São Paulo - SP',
-      cpf: '123.456.789-00',
-      dataNascimento: '1990-05-14',
-      ocupacao: 'Advogada'
-    },
-    {
-      id: '2',
-      nome: 'Maria Santos',
-      telefone: '(11) 99999-2222',
-      endereco: 'Av. Paulista, 1000, São Paulo - SP',
-      cpf: '234.567.890-11',
-      dataNascimento: '1985-08-20',
-      ocupacao: 'Médica'
-    },
-    {
-      id: '3',
-      nome: 'Juliana Costa',
-      telefone: '(11) 99999-3333',
-      endereco: 'Rua Augusta, 500, São Paulo - SP',
-      cpf: '345.678.901-22',
-      dataNascimento: '1992-12-03',
-      ocupacao: 'Engenheira'
-    },
-    {
-      id: '4',
-      nome: 'Carla Oliveira',
-      telefone: '(11) 99999-4444',
-      endereco: 'Rua Oscar Freire, 200, São Paulo - SP',
-      cpf: '456.789.012-33',
-      dataNascimento: '1988-07-15',
-      ocupacao: 'Designer'
-    },
-    {
-      id: '5',
-      nome: 'Fernanda Lima',
-      telefone: '(11) 99999-5555',
-      endereco: 'Av. Faria Lima, 1500, São Paulo - SP',
-      cpf: '567.890.123-44',
-      dataNascimento: '1995-11-22',
-      ocupacao: 'Professora'
-    }
-  ]
-
-  const clienteAtual = clientes.find(c => c.id === id) || clientes[0]
-
   const [formData, setFormData] = useState({
-    nome: clienteAtual?.nome || '',
-    dataNascimento: clienteAtual?.dataNascimento || '',
-    ocupacao: clienteAtual?.ocupacao || '',
-    telefone: clienteAtual?.telefone || '',
-    endereco: clienteAtual?.endereco || '',
-    cpf: clienteAtual?.cpf || ''
+    nome: '',
+    dataNascimento: '',
+    ocupacao: '',
+    telefone: '',
+    endereco: '',
+    cpf: ''
   })
 
   useEffect(() => {
@@ -112,41 +61,71 @@ export default function EditarCliente() {
     })
 
     // Carregar dados do cliente
-    // Aqui você carregaria os dados do Supabase
-    // const { data, error } = await supabase.from('clientes').select('*').eq('id', id).single()
-    // if (data) {
-    //   setFormData({
-    //     nome: data.nome,
-    //     dataNascimento: data.dataNascimento,
-    //     ocupacao: data.ocupacao,
-    //     telefone: data.telefone,
-    //     endereco: data.endereco,
-    //     cpf: data.cpf
-    //   })
-    // }
+    if (id) {
+      loadCliente(id)
+    }
 
     return () => subscription.unsubscribe()
   }, [navigate, id])
 
+  const loadCliente = async (clienteId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('id', clienteId)
+        .single()
+
+      if (error) throw error
+      if (data) {
+        setFormData({
+          nome: data.nome || '',
+          dataNascimento: data.data_nascimento || '',
+          ocupacao: data.ocupacao || '',
+          telefone: data.telefone || '',
+          endereco: data.endereco || '',
+          cpf: data.cpf || ''
+        })
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar cliente:', error)
+      alert('Erro ao carregar dados do cliente.')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!id) return
+    
     setLoading(true)
 
     try {
-      // Aqui você fará a atualização no Supabase
-      // const { data, error } = await supabase.from('clientes').update(formData).eq('id', id)
-      // if (error) throw error
+      const { error } = await supabase
+        .from('clientes')
+        .update({
+          nome: formData.nome,
+          data_nascimento: formData.dataNascimento || null,
+          ocupacao: formData.ocupacao || null,
+          telefone: formData.telefone || null,
+          endereco: formData.endereco || null,
+          cpf: formData.cpf || null
+        })
+        .eq('id', id)
+
+      if (error) throw error
       
-      // Por enquanto, apenas redireciona
       navigate('/clientes')
     } catch (error: any) {
       console.error('Erro ao atualizar cliente:', error)
+      alert('Erro ao atualizar cliente. Tente novamente.')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDelete = async () => {
+    if (!id) return
+    
     if (!window.confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) {
       return
     }
@@ -154,11 +133,13 @@ export default function EditarCliente() {
     setDeleting(true)
 
     try {
-      // Aqui você fará a exclusão no Supabase
-      // const { error } = await supabase.from('clientes').delete().eq('id', id)
-      // if (error) throw error
+      const { error } = await supabase
+        .from('clientes')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
       
-      // Por enquanto, apenas redireciona
       navigate('/clientes')
     } catch (error: any) {
       console.error('Erro ao excluir cliente:', error)

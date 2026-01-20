@@ -65,14 +65,25 @@ export default function NovoCliente() {
     setLoading(true)
 
     try {
-      // Aqui você fará a inserção no Supabase
-      // const { data, error } = await supabase.from('clientes').insert([formData])
-      // if (error) throw error
+      const { data, error } = await supabase
+        .from('clientes')
+        .insert([{
+          nome: formData.nome,
+          data_nascimento: formData.dataNascimento || null,
+          ocupacao: formData.ocupacao || null,
+          telefone: formData.telefone || null,
+          endereco: formData.endereco || null,
+          cpf: formData.cpf || null
+        }])
+        .select()
+        .single()
+
+      if (error) throw error
       
-      // Por enquanto, apenas redireciona
       navigate('/clientes')
     } catch (error: any) {
       console.error('Erro ao cadastrar cliente:', error)
+      alert('Erro ao cadastrar cliente. Tente novamente.')
     } finally {
       setLoading(false)
     }

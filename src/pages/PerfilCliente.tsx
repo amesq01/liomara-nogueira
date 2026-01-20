@@ -180,21 +180,122 @@ export default function PerfilCliente() {
     return () => subscription.unsubscribe()
   }, [navigate])
 
-  // Dados mockados do cliente - substituir por dados reais do Supabase
-  const cliente = {
-    id: id || '1',
-    nome: 'Ana Paula Silva',
-    telefone: '(11) 99999-1111',
-    dataNascimento: '14/05/1990',
-    ocupacao: 'Advogada',
-    endereco: 'Rua das Flores, 123, São Paulo - SP',
-    cpf: '123.456.789-00',
-    clienteDesde: 'janeiro de 2026'
+  const [cliente, setCliente] = useState<{
+    id: string
+    nome: string
+    telefone: string | null
+    dataNascimento: string | null
+    ocupacao: string | null
+    endereco: string | null
+    cpf: string | null
+    clienteDesde: string
+  } | null>(null)
+
+  // Carregar dados do cliente e anamneses
+  useEffect(() => {
+    if (id) {
+      loadCliente(id)
+      loadAnamneses(id)
+    }
+  }, [id])
+
+  const loadCliente = async (clienteId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('id', clienteId)
+        .single()
+
+      if (error) throw error
+      if (data) {
+        const dataNascimentoFormatada = data.data_nascimento 
+          ? new Date(data.data_nascimento).toLocaleDateString('pt-BR')
+          : null
+        
+        const clienteDesde = data.cliente_desde
+          ? new Date(data.cliente_desde).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+          : 'Data não disponível'
+
+        setCliente({
+          id: data.id,
+          nome: data.nome,
+          telefone: data.telefone,
+          dataNascimento: dataNascimentoFormatada,
+          ocupacao: data.ocupacao,
+          endereco: data.endereco,
+          cpf: data.cpf,
+          clienteDesde
+        })
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar cliente:', error)
+      alert('Erro ao carregar dados do cliente.')
+    }
+  }
+
+  const loadAnamneses = async (clienteId: string) => {
+    try {
+      // Carregar anamnese facial
+      const { data: facialData } = await supabase
+        .from('anamneses')
+        .select('*')
+        .eq('cliente_id', clienteId)
+        .eq('tipo', 'facial')
+        .single()
+
+      if (facialData) {
+        // Preencher estados com dados da anamnese facial
+        if (facialData.historico_saude) {
+          setQuestions(facialData.historico_saude)
+        }
+        if (facialData.avaliacao_pele) {
+          setSkinAssessment(facialData.avaliacao_pele)
+        }
+        if (facialData.anotacoes && Array.isArray(facialData.anotacoes)) {
+          setAnotacoesFacial(facialData.anotacoes)
+        }
+      }
+
+      // Carregar anamnese corporal
+      const { data: corporalData } = await supabase
+        .from('anamneses')
+        .select('*')
+        .eq('cliente_id', clienteId)
+        .eq('tipo', 'corporal')
+        .single()
+
+      if (corporalData) {
+        // Preencher estados com dados da anamnese corporal
+        if (corporalData.historico_saude) {
+          setQuestionsCorporal(corporalData.historico_saude)
+        }
+        if (corporalData.medidas_antropometricas) {
+          const medidasData = corporalData.medidas_antropometricas
+          setMedidas({
+            altura: medidasData.altura || '',
+            pesoInicial: medidasData.pesoInicial || '',
+            pesoFinal: medidasData.pesoFinal || '',
+            observacoes: medidasData.observacoes || '',
+            observacoesMedidas: medidasData.observacoesMedidas || '',
+            medidas: medidasData.medidas || {}
+          })
+        }
+        if (corporalData.anotacoes && Array.isArray(corporalData.anotacoes)) {
+          setAnotacoesCorporal(corporalData.anotacoes)
+        }
+      }
+    } catch (error: any) {
+      // Não é erro se não existir anamnese ainda
+      if (error.code !== 'PGRST116') {
+        console.error('Erro ao carregar anamneses:', error)
+      }
+    }
   }
 
   const isActive = (path: string) => location.pathname === path
 
-  if (!user) {
+  if (!user || !cliente) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FBFAF9' }}>
         <div className="flex flex-col items-center gap-4">
@@ -2277,17 +2378,67 @@ export default function PerfilCliente() {
               {/* Save Button */}
               <div className="mt-6 flex justify-end">
                 <Button 
-                  onClick={() => {
-                    // Adicionar anotação facial se houver texto
-                    if (novaAnotacaoFacial.trim()) {
-                      adicionarAnotacaoFacial()
+                  onClick={async () => {
+                    if (!id || !cliente) return
+
+                    try {
+                      // Adicionar anotação facial se houver texto
+                      if (novaAnotacaoFacial.trim()) {
+                        adicionarAnotacaoFacial()
+                      }
+                      // Adicionar anotação corporal se houver texto
+                      if (novaAnotacaoCorporal.trim()) {
+                        adicionarAnotacaoCorporal()
+                      }
+
+                      // Salvar anamnese facial
+                      const anamneseFacialData = {
+                        cliente_id: id,
+                        tipo: 'facial',
+                        historico_saude: questions,
+                        avaliacao_pele: skinAssessment,
+                        anotacoes: anotacoesFacial
+                      }
+
+                      const { error: errorFacial } = await supabase
+                        .from('anamneses')
+                        .upsert(anamneseFacialData, {
+                          onConflict: 'cliente_id,tipo'
+                        })
+
+                      if (errorFacial) throw errorFacial
+
+                      // Salvar anamnese corporal
+                      const anamneseCorporalData = {
+                        cliente_id: id,
+                        tipo: 'corporal',
+                        historico_saude: questionsCorporal,
+                        medidas_antropometricas: {
+                          altura: medidas.altura,
+                          pesoInicial: medidas.pesoInicial,
+                          pesoFinal: medidas.pesoFinal,
+                          observacoes: medidas.observacoes,
+                          observacoesMedidas: medidas.observacoesMedidas,
+                          medidas: medidas.medidas
+                        },
+                        anotacoes: anotacoesCorporal
+                      }
+
+                      const { error: errorCorporal } = await supabase
+                        .from('anamneses')
+                        .upsert(anamneseCorporalData, {
+                          onConflict: 'cliente_id,tipo'
+                        })
+
+                      if (errorCorporal) throw errorCorporal
+
+                      alert('Anamnese salva com sucesso!')
+                      setNovaAnotacaoFacial('')
+                      setNovaAnotacaoCorporal('')
+                    } catch (error: any) {
+                      console.error('Erro ao salvar anamnese:', error)
+                      alert('Erro ao salvar anamnese. Tente novamente.')
                     }
-                    // Adicionar anotação corporal se houver texto
-                    if (novaAnotacaoCorporal.trim()) {
-                      adicionarAnotacaoCorporal()
-                    }
-                    // Aqui você fará a inserção/atualização no Supabase
-                    // await supabase.from('anameses').insert([...])
                   }}
                   className="bg-rose-500 hover:bg-rose-600 text-white shadow-md"
                 >

@@ -50,60 +50,50 @@ export default function Clientes() {
     return () => subscription.unsubscribe()
   }, [navigate])
 
-  // Dados mockados - substituir por dados reais do Supabase
-  const clientes = [
-    {
-      id: 1,
-      nome: 'Ana Paula Silva',
-      telefone: '(11) 99999-1111',
-      endereco: 'Rua das Flores, 123, São Paulo - SP',
-      cpf: '123.456.789-00',
-      dataNascimento: '14/05/1990',
-      ocupacao: 'Advogada'
-    },
-    {
-      id: 2,
-      nome: 'Maria Santos',
-      telefone: '(11) 99999-2222',
-      endereco: 'Av. Paulista, 1000, São Paulo - SP',
-      cpf: '234.567.890-11',
-      dataNascimento: '20/08/1985',
-      ocupacao: 'Médica'
-    },
-    {
-      id: 3,
-      nome: 'Juliana Costa',
-      telefone: '(11) 99999-3333',
-      endereco: 'Rua Augusta, 500, São Paulo - SP',
-      cpf: '345.678.901-22',
-      dataNascimento: '03/12/1992',
-      ocupacao: 'Engenheira'
-    },
-    {
-      id: 4,
-      nome: 'Carla Oliveira',
-      telefone: '(11) 99999-4444',
-      endereco: 'Rua Oscar Freire, 200, São Paulo - SP',
-      cpf: '456.789.012-33',
-      dataNascimento: '15/07/1988',
-      ocupacao: 'Designer'
-    },
-    {
-      id: 5,
-      nome: 'Fernanda Lima',
-      telefone: '(11) 99999-5555',
-      endereco: 'Av. Faria Lima, 1500, São Paulo - SP',
-      cpf: '567.890.123-44',
-      dataNascimento: '22/11/1995',
-      ocupacao: 'Professora'
+  const [clientes, setClientes] = useState<Array<{
+    id: string
+    nome: string
+    telefone: string | null
+    endereco: string | null
+    cpf: string | null
+    dataNascimento: string | null
+    ocupacao: string | null
+  }>>([])
+
+  // Carregar clientes do Supabase
+  const loadClientes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .order('nome', { ascending: true })
+
+      if (error) throw error
+      if (data) {
+        setClientes(data.map(cliente => ({
+          id: cliente.id,
+          nome: cliente.nome,
+          telefone: cliente.telefone || '',
+          endereco: cliente.endereco || '',
+          cpf: cliente.cpf || '',
+          dataNascimento: cliente.data_nascimento || null,
+          ocupacao: cliente.ocupacao || ''
+        })))
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar clientes:', error)
     }
-  ]
+  }
+
+  useEffect(() => {
+    loadClientes()
+  }, [])
 
   // Filtrar clientes baseado na busca
   const clientesFiltrados = clientes.filter(cliente => 
     cliente.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    cliente.telefone.includes(searchQuery) ||
-    cliente.cpf.includes(searchQuery)
+    (cliente.telefone && cliente.telefone.includes(searchQuery)) ||
+    (cliente.cpf && cliente.cpf.includes(searchQuery))
   )
 
   const isActive = (path: string) => location.pathname === path
@@ -296,8 +286,8 @@ export default function Clientes() {
                         <h3 className="font-bold text-slate-800 text-base sm:text-lg mb-1 truncate">
                           {cliente.nome}
                         </h3>
-                        <p className="text-sm text-slate-600 mb-1 truncate">{cliente.telefone}</p>
-                        <p className="text-sm text-slate-600 truncate">{cliente.endereco}</p>
+                        <p className="text-sm text-slate-600 mb-1 truncate">{cliente.telefone || 'Sem telefone'}</p>
+                        <p className="text-sm text-slate-600 truncate">{cliente.endereco || 'Sem endereço'}</p>
                       </div>
 
                       {/* Actions */}

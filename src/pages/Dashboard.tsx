@@ -20,6 +20,26 @@ import {
 export default function Dashboard() {
   const [user, setUser] = useState<any>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState({
+    totalClientes: 0,
+    agendamentosHoje: 0,
+    concluidosMes: 0,
+    proximo: {
+      horario: '--:--',
+      cliente: 'Nenhum',
+      servico: 'agendamento'
+    }
+  })
+  const [agendamentosHoje, setAgendamentosHoje] = useState<Array<{
+    id: string
+    servico: string
+    cliente: string
+    data: string
+    horario: string
+    status: string
+    observacoes?: string | null
+  }>>([])
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -46,45 +66,111 @@ export default function Dashboard() {
       }
     })
 
+    // Carregar dados do dashboard
+    loadDashboardData()
+
     return () => subscription.unsubscribe()
   }, [navigate])
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    navigate('/login')
-  }
+  const loadDashboardData = async () => {
+    setLoading(true)
+    try {
+      // Data de hoje
+      const hoje = new Date()
+      const hojeISO = hoje.toISOString().split('T')[0]
+      
+      // Primeiro dia do mês atual
+      const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+      const primeiroDiaMesISO = primeiroDiaMes.toISOString().split('T')[0]
 
-  // Dados mockados - substituir por dados reais do Supabase
-  const stats = {
-    totalClientes: 24,
-    agendamentosHoje: 5,
-    concluidosMes: 128,
-    proximo: {
-      horario: '14:00',
-      cliente: 'Ana Paula',
-      servico: 'Limpeza de Pele'
+      // Carregar total de clientes
+      const { count: totalClientes } = await supabase
+        .from('clientes')
+        .select('*', { count: 'exact', head: true })
+
+      // Carregar agendamentos de hoje
+      const { data: agendamentosHojeData, error: errorAgendamentos } = await supabase
+        .from('agendamentos')
+        .select(`
+          *,
+          clientes!agendamentos_cliente_id_fkey(nome),
+          procedimentos!agendamentos_procedimento_id_fkey(descricao)
+        `)
+        .eq('data', hojeISO)
+        .eq('status', 'Agendado')
+        .order('horario', { ascending: true })
+
+      if (errorAgendamentos) throw errorAgendamentos
+
+      // Carregar agendamentos concluídos do mês
+      const { count: concluidosMes } = await supabase
+        .from('agendamentos')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Concluído')
+        .gte('data', primeiroDiaMesISO)
+
+      // Organizar agendamentos de hoje por proximidade da data/hora atual
+      const agora = new Date()
+      const agendamentosFormatados = (agendamentosHojeData || []).map(ag => {
+        const clienteData = Array.isArray(ag.clientes) ? ag.clientes[0] : ag.clientes
+        const procedimentoData = Array.isArray(ag.procedimentos) ? ag.procedimentos[0] : ag.procedimentos
+        
+        // Criar objeto Date para o agendamento
+        const [horas, minutos] = ag.horario.split(':').map(Number)
+        const dataAgendamento = new Date(hoje)
+        dataAgendamento.setHours(horas, minutos, 0, 0)
+
+        return {
+          id: ag.id,
+          servico: procedimentoData?.descricao || 'Procedimento não encontrado',
+          cliente: clienteData?.nome || 'Cliente não encontrado',
+          data: hoje.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }),
+          horario: ag.horario,
+          status: ag.status,
+          observacoes: ag.observacoes,
+          dataAgendamento: dataAgendamento.getTime() // Para ordenação
+        }
+      }).sort((a, b) => {
+        // Ordenar por proximidade da data/hora atual (mais próximo primeiro)
+        const diffA = Math.abs(a.dataAgendamento - agora.getTime())
+        const diffB = Math.abs(b.dataAgendamento - agora.getTime())
+        return diffA - diffB
+      }).map(({ dataAgendamento, ...rest }) => rest) // Remover campo auxiliar
+
+      // Encontrar próximo agendamento (mais próximo no futuro)
+      const proximosFuturos = agendamentosFormatados.filter(ag => {
+        const [horas, minutos] = ag.horario.split(':').map(Number)
+        const dataAgendamento = new Date(hoje)
+        dataAgendamento.setHours(horas, minutos, 0, 0)
+        return dataAgendamento > agora
+      })
+
+      const proximo = proximosFuturos.length > 0 
+        ? {
+            horario: proximosFuturos[0].horario,
+            cliente: proximosFuturos[0].cliente,
+            servico: proximosFuturos[0].servico
+          }
+        : {
+            horario: '--:--',
+            cliente: 'Nenhum',
+            servico: 'agendamento'
+          }
+
+      setStats({
+        totalClientes: totalClientes || 0,
+        agendamentosHoje: agendamentosFormatados.length,
+        concluidosMes: concluidosMes || 0,
+        proximo
+      })
+
+      setAgendamentosHoje(agendamentosFormatados)
+    } catch (error: any) {
+      console.error('Erro ao carregar dados do dashboard:', error)
+    } finally {
+      setLoading(false)
     }
   }
-
-  const agendamentosHoje = [
-    {
-      id: 1,
-      servico: 'Limpeza de Pele',
-      cliente: 'Ana Paula Silva',
-      data: '24 de janeiro',
-      horario: '14:00',
-      status: 'Agendado',
-      descricao: 'Primeira sessão do tratamento'
-    },
-    {
-      id: 2,
-      servico: 'Microagulhamento',
-      cliente: 'Maria Santos',
-      data: '24 de janeiro',
-      horario: '16:30',
-      status: 'Agendado'
-    }
-  ]
 
   if (!user) {
     return (
@@ -302,48 +388,62 @@ export default function Dashboard() {
             <CardContent className="p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
                 <h2 className="text-lg sm:text-xl font-bold text-slate-800">Agendamentos de Hoje</h2>
-                <button className="text-amber-600 hover:text-amber-700 text-sm font-medium">
+                <button 
+                  onClick={() => navigate('/agendamentos')}
+                  className="text-amber-600 hover:text-amber-700 text-sm font-medium"
+                >
                   Ver todos
                 </button>
               </div>
 
-              <div className="space-y-3 sm:space-y-4">
-                {agendamentosHoje.map((agendamento) => (
-                  <div
-                    key={agendamento.id}
-                    className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-gradient-to-r from-white to-amber-50/30 rounded-lg border border-amber-200/50 hover:border-amber-300 hover:shadow-sm transition-all"
-                  >
-                    <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
-                      <div className="p-2 bg-amber-100 rounded-lg flex-shrink-0">
-                        <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-slate-800 mb-2 sm:mb-1 text-sm sm:text-base">{agendamento.servico}</h3>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
-                          <div className="flex items-center gap-2">
-                            <User className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 flex-shrink-0" />
-                            <span className="font-medium text-slate-800 text-xs sm:text-sm truncate">{agendamento.cliente}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 flex-shrink-0" />
-                            <span className="text-xs sm:text-sm text-slate-600">{agendamento.data}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 flex-shrink-0" />
-                            <span className="text-xs sm:text-sm text-slate-600 font-medium">{agendamento.horario}</span>
-                          </div>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-600"></div>
+                </div>
+              ) : agendamentosHoje.length === 0 ? (
+                <div className="text-center py-8">
+                  <Calendar className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-500">Nenhum agendamento para hoje</p>
+                </div>
+              ) : (
+                <div className="space-y-3 sm:space-y-4">
+                  {agendamentosHoje.map((agendamento) => (
+                    <div
+                      key={agendamento.id}
+                      className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-gradient-to-r from-white to-amber-50/30 rounded-lg border border-amber-200/50 hover:border-amber-300 hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                        <div className="p-2 bg-amber-100 rounded-lg flex-shrink-0">
+                          <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
                         </div>
-                        {agendamento.descricao && (
-                          <p className="text-xs sm:text-sm text-slate-500">{agendamento.descricao}</p>
-                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-slate-800 mb-2 sm:mb-1 text-sm sm:text-base">{agendamento.servico}</h3>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
+                            <div className="flex items-center gap-2">
+                              <User className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 flex-shrink-0" />
+                              <span className="font-medium text-slate-800 text-xs sm:text-sm truncate">{agendamento.cliente}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 flex-shrink-0" />
+                              <span className="text-xs sm:text-sm text-slate-600">{agendamento.data}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 flex-shrink-0" />
+                              <span className="text-xs sm:text-sm text-slate-600 font-medium">{agendamento.horario}</span>
+                            </div>
+                          </div>
+                          {agendamento.observacoes && (
+                            <p className="text-xs sm:text-sm text-slate-500">{agendamento.observacoes}</p>
+                          )}
+                        </div>
                       </div>
+                      <span className="px-2 sm:px-3 py-1 bg-rose-100 text-rose-700 text-xs font-medium rounded-full border border-rose-200 self-start sm:self-auto">
+                        {agendamento.status}
+                      </span>
                     </div>
-                    <span className="px-2 sm:px-3 py-1 bg-rose-100 text-rose-700 text-xs font-medium rounded-full border border-rose-200 self-start sm:self-auto">
-                      {agendamento.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
