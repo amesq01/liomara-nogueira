@@ -63,7 +63,7 @@ function App() {
           backgroundPositionY:'-50px',
         }}
       >
-        <div className="absolute inset-0 bg-linear-to-r from-neutral-900/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-neutral-900/40 to-transparent" />
       </div>
 
       {/* Right Section - Mobile Card Overlay + Desktop Login Card */}
@@ -72,17 +72,17 @@ function App() {
       
       >
         {/* Mobile/Tablet Background Overlay */}
-        <div className="absolute inset-0 lg:hidden bg-linear-to-b from-neutral-900/10 via-neutral-950/60 to-neutral-950/80" />
+        <div className="absolute inset-0 lg:hidden bg-gradient-to-b from-neutral-900/10 via-neutral-950/60 to-neutral-950/80" />
         
         {/* Desktop Background - Subtle */}
-        <div className=" lg:absolute lg:inset-0 bg-linear-to-l from-neutral-900 via-neutral-900/95 to-transparent" />
+        <div className=" lg:absolute lg:inset-0 bg-gradient-to-l from-neutral-900 via-neutral-900/95 to-transparent" />
 
         {/* Login Card */}
-        <Card className="relative z-10 flex flex-col items-center w-full lg:w-124  bg-linear-to-b from-amber-50/0 to-amber-50/3 border-0 shadow-2xl overflow-hidden group">
+        <Card className="relative z-10 flex flex-col items-center w-full lg:max-w-md  bg-gradient-to-b from-amber-50/0 to-amber-50/3 border-0 shadow-2xl overflow-hidden group">
 
           {/* Decorative wave at bottom
           
-           <div className="absolute bottom-0 left-0 right-0 h-8 bg-linear-to-r from-amber-100 to-amber-200 opacity-50 transform skew-y-1" 
+           <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-r from-amber-100 to-amber-200 opacity-50 transform skew-y-1" 
             style={{
               clipPath: 'polygon(0 50%, 100% 0%, 100% 100%, 0 100%)',
             }}
@@ -165,7 +165,7 @@ function App() {
               <Button 
                 type="submit" 
                 disabled={loading}
-                className="w-full h-12 lg:h-14 text-base font-semibold bg-linear-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-800 hover:via-amber-700 hover:to-amber-800 text-amber-50 shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg mt-4 lg:mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-12 lg:h-14 text-base font-semibold bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-800 hover:via-amber-700 hover:to-amber-800 text-amber-50 shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg mt-4 lg:mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Entrando...' : 'Entrar no sistema'}
               </Button>
