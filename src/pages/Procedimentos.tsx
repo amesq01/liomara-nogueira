@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
-  Sparkles, 
+
   LayoutDashboard, 
   Users, 
   Calendar,
   Menu,
-  X,
+ 
   Plus,
   Scissors
 } from 'lucide-react'
