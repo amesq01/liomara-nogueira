@@ -250,7 +250,7 @@ export default function Agendamentos() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-amber-100/30">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-amber-50 to-amber-100/30">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-600"></div>
           <p className="text-slate-700 text-lg">Carregando...</p>
@@ -272,7 +272,7 @@ export default function Agendamentos() {
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-64 bg-gradient-to-b from-amber-50 to-white border-r border-amber-200 flex flex-col
+        w-64 bg-linear-to-b from-amber-50 to-white border-r border-amber-200 flex flex-col
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
@@ -456,7 +456,16 @@ export default function Agendamentos() {
           </div>
 
           {/* Lista de Agendamentos */}
-          {agendamentosFiltrados.length === 0 ? (
+          {loading ? (
+            <Card className="bg-white/80 backdrop-blur-sm border-amber-200/50 shadow-sm">
+              <CardContent className="p-6">
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-600 mx-auto mb-4"></div>
+                  <p className="text-slate-500 text-lg">Carregando agendamentos...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : agendamentosFiltrados.length === 0 ? (
             <Card className="bg-white/80 backdrop-blur-sm border-amber-200/50 shadow-sm">
               <CardContent className="p-6">
                 <div className="text-center py-12">
@@ -483,7 +492,7 @@ export default function Agendamentos() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex-1 space-y-3">
                           <div className="flex items-start gap-3">
-                            <div className="p-2 bg-amber-100 rounded-lg flex-shrink-0">
+                            <div className="p-2 bg-amber-100 rounded-lg shrink-0">
                               <Calendar className="h-5 w-5 text-amber-600" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -508,7 +517,7 @@ export default function Agendamentos() {
                         </div>
 
                         {/* Status */}
-                        <div className="flex-shrink-0">
+                        <div className="shrink-0">
                           <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(agendamento.status)}`}>
                             {agendamento.status}
                           </span>

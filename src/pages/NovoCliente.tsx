@@ -65,7 +65,7 @@ export default function NovoCliente() {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('clientes')
         .insert([{
           nome: formData.nome,
@@ -75,8 +75,6 @@ export default function NovoCliente() {
           endereco: formData.endereco || null,
           cpf: formData.cpf || null
         }])
-        .select()
-        .single()
 
       if (error) throw error
       
@@ -115,7 +113,7 @@ export default function NovoCliente() {
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-64 bg-gradient-to-b from-amber-50 to-white border-r border-amber-200 flex flex-col
+        w-64 bg-linear-to-b from-amber-50 to-white border-r border-amber-200 flex flex-col
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
