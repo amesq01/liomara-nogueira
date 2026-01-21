@@ -15,13 +15,16 @@ import {
   MapPin,
   Briefcase,
   Calendar as CalendarIcon,
-  Scissors
+  Scissors,
+  Camera
 } from 'lucide-react'
 
 export default function NovoCliente() {
   const [user, setUser] = useState<any>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [uploadingFoto, setUploadingFoto] = useState(false)
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -58,12 +61,65 @@ export default function NovoCliente() {
     return () => subscription.unsubscribe()
   }, [navigate])
 
+  const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return
+    
+    const file = e.target.files[0]
+    
+    // Validar tamanho (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 5MB')
+      return
+    }
+
+    // Validar tipo
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor, selecione uma imagem')
+      return
+    }
+
+    setUploadingFoto(true)
+    
+    try {
+      // Criar nome único para o arquivo (usar timestamp temporário até ter o ID do cliente)
+      const fileExt = file.name.split('.').pop()
+      const fileName = `temp-${Date.now()}.${fileExt}`
+      const filePath = `clientes/${fileName}`
+
+      // Upload para Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('fotos-clientes')
+        .upload(filePath, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      // Obter URL pública da imagem
+      const { data: { publicUrl } } = supabase.storage
+        .from('fotos-clientes')
+        .getPublicUrl(filePath)
+
+      // Atualizar estado local (será salvo quando criar o cliente)
+      setFotoUrl(publicUrl)
+      
+      alert('Foto carregada com sucesso! Ela será salva ao cadastrar o cliente.')
+    } catch (error: any) {
+      console.error('Erro ao fazer upload da foto:', error)
+      alert('Erro ao fazer upload da foto. Tente novamente.')
+    } finally {
+      setUploadingFoto(false)
+      // Limpar input
+      if (e.target) {
+        e.target.value = ''
+      }
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const { error } = await supabase
+      const { data: novoCliente, error } = await supabase
         .from('clientes')
         .insert([{
           nome: formData.nome,
@@ -71,10 +127,53 @@ export default function NovoCliente() {
           ocupacao: formData.ocupacao || null,
           telefone: formData.telefone || null,
           endereco: formData.endereco || null,
-          cpf: formData.cpf || null
+          cpf: formData.cpf || null,
+          foto_url: fotoUrl || null
         }])
+        .select()
+        .single()
 
       if (error) throw error
+
+      // Se a foto foi carregada com nome temporário, renomear para o ID do cliente
+      if (fotoUrl && novoCliente) {
+        const urlParts = fotoUrl.split('/')
+        const fileName = urlParts[urlParts.length - 1]
+        
+        if (fileName.startsWith('temp-')) {
+          const fileExt = fileName.split('.').pop()
+          const newFileName = `${novoCliente.id}-${Date.now()}.${fileExt}`
+          const oldPath = `clientes/${fileName}`
+          const newPath = `clientes/${newFileName}`
+
+          // Copiar arquivo para novo nome
+          const { data: fileData } = await supabase.storage
+            .from('fotos-clientes')
+            .download(oldPath)
+
+          if (fileData) {
+            await supabase.storage
+              .from('fotos-clientes')
+              .upload(newPath, fileData, { upsert: true })
+
+            // Obter nova URL
+            const { data: { publicUrl } } = supabase.storage
+              .from('fotos-clientes')
+              .getPublicUrl(newPath)
+
+            // Atualizar foto_url no banco
+            await supabase
+              .from('clientes')
+              .update({ foto_url: publicUrl })
+              .eq('id', novoCliente.id)
+
+            // Deletar arquivo temporário
+            await supabase.storage
+              .from('fotos-clientes')
+              .remove([oldPath])
+          }
+        }
+      }
       
       navigate('/clientes')
     } catch (error: any) {
@@ -137,7 +236,7 @@ export default function NovoCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/dashboard') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <LayoutDashboard className="h-5 w-5" />
@@ -148,7 +247,7 @@ export default function NovoCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/clientes') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Users className="h-5 w-5" />
@@ -159,7 +258,7 @@ export default function NovoCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/agendamentos') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Calendar className="h-5 w-5" />
@@ -170,7 +269,7 @@ export default function NovoCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/procedimentos') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Scissors className="h-5 w-5" />
@@ -221,13 +320,44 @@ export default function NovoCliente() {
           {/* Form Card */}
           <Card className="bg-white/80 backdrop-blur-sm border-amber-200/50 shadow-sm">
             <CardHeader className="flex items-center gap-3 pb-6">
-              <div className="p-2 bg-rose-100 rounded-lg">
-                <User className="h-6 w-6 text-rose-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-800">Novo Cliente</h2>
+              
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Upload de Foto */}
+                <div className="flex flex-col items-center mb-6 pb-6 border-b border-amber-200">
+                  <div className="relative group">
+                    <div className="w-24 h-24 rounded-full bg-rose-100 flex items-center justify-center overflow-hidden border-2 border-rose-200">
+                      {fotoUrl ? (
+                        <img 
+                          src={fotoUrl} 
+                          alt="Foto do cliente"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User className="h-12 w-12 text-rose-600" />
+                      )}
+                    </div>
+                    <label className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFotoUpload}
+                        disabled={uploadingFoto}
+                      />
+                      {uploadingFoto ? (
+                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                      ) : (
+                        <Camera className="h-6 w-6 text-white" />
+                      )}
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2 text-center">
+                    Clique na foto para adicionar (máx. 5MB)
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Nome Completo */}
                   <div>
@@ -339,7 +469,7 @@ export default function NovoCliente() {
                   <Button 
                     type="submit" 
                     disabled={loading}
-                    className="bg-rose-500 hover:bg-rose-600 text-white shadow-md"
+                    className="bg-rose-500 w-full md:w-auto hover:bg-rose-600 text-white shadow-md"
                   >
                     {loading ? 'Cadastrando...' : 'Cadastrar Cliente'}
                   </Button>

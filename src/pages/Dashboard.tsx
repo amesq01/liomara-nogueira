@@ -234,12 +234,12 @@ export default function Dashboard() {
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-64 bg-gradient-to-b from-amber-50 to-white border-r border-amber-200 flex flex-col
+        w-64 bg-gradient-to-b from-amber-50 to-white border-r border-amber-100 flex flex-col
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className="p-4 lg:p-6 border-b border-amber-200 flex items-center justify-center">
+        <div className="p-4 lg:p-6 border-b border-amber-100 flex items-center justify-center">
           <div className="flex items-center gap-2 mb-1">
             
             <div className='flex justify-center flex-col items-center w-full'>
@@ -268,7 +268,7 @@ export default function Dashboard() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/clientes') 
                 ? 'bg-rose-300 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Users className="h-5 w-5" />
@@ -279,7 +279,7 @@ export default function Dashboard() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/agendamentos') 
                 ? 'bg-rose-300 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Calendar className="h-5 w-5" />
@@ -290,7 +290,7 @@ export default function Dashboard() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/procedimentos') 
                 ? 'bg-rose-300 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Scissors className="h-5 w-5" />
@@ -365,7 +365,7 @@ export default function Dashboard() {
                     <p className="text-2xl sm:text-3xl font-bold text-slate-800">{stats.totalClientes}</p>
                     <p className="text-xs text-slate-500 mt-1">Cadastrados no sistema</p>
                   </div>
-                  <div className="p-2 sm:p-3 bg-amber-100 rounded-lg flex-shrink-0 ml-2">
+                  <div className="p-2 sm:p-3 bg-rose-50 rounded-lg flex-shrink-0 ml-2">
                     <Users className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
                   </div>
                 </div>
@@ -381,7 +381,7 @@ export default function Dashboard() {
                     <p className="text-2xl sm:text-3xl font-bold text-slate-800">{stats.agendamentosHoje}</p>
                     <p className="text-xs text-slate-500 mt-1">Procedimentos programados</p>
                   </div>
-                  <div className="p-2 sm:p-3 bg-amber-100 rounded-lg flex-shrink-0 ml-2">
+                  <div className="p-2 sm:p-3 bg-rose-50 rounded-lg flex-shrink-0 ml-2">
                     <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
                   </div>
                 </div>
@@ -397,7 +397,7 @@ export default function Dashboard() {
                     <p className="text-2xl sm:text-3xl font-bold text-slate-800">{stats.concluidosMes}</p>
                     <p className="text-xs text-slate-500 mt-1">Este mês</p>
                   </div>
-                  <div className="p-2 sm:p-3 bg-amber-100 rounded-lg flex-shrink-0 ml-2">
+                  <div className="p-2 sm:p-3 bg-rose-50 rounded-lg flex-shrink-0 ml-2">
                     <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
                   </div>
                 </div>
@@ -411,9 +411,10 @@ export default function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs sm:text-sm text-slate-600 mb-1">Próximo</p>
                     <p className="text-2xl sm:text-3xl font-bold text-slate-800">{stats.proximo.horario}</p>
-                    <p className="text-xs text-slate-500 mt-1 truncate">{stats.proximo.cliente} - {stats.proximo.servico}</p>
+                    <p className="text-[10px] text-slate-500 mt-1 truncate">{stats.proximo.cliente}</p>
+                    <p className="text-[10px] text-slate-500 mt-1 truncate">{stats.proximo.servico}</p>
                   </div>
-                  <div className="p-2 sm:p-3 bg-amber-100 rounded-lg flex-shrink-0 ml-2">
+                  <div className="p-2 sm:p-3 bg-rose-50 rounded-lg flex-shrink-0 ml-2">
                     <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
                   </div>
                 </div>

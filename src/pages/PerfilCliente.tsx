@@ -414,7 +414,7 @@ export default function PerfilCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/dashboard') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <LayoutDashboard className="h-5 w-5" />
@@ -425,7 +425,7 @@ export default function PerfilCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/clientes') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Users className="h-5 w-5" />
@@ -436,7 +436,7 @@ export default function PerfilCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/agendamentos') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Calendar className="h-5 w-5" />
@@ -447,7 +447,7 @@ export default function PerfilCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/procedimentos') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Scissors className="h-5 w-5" />
@@ -563,7 +563,7 @@ export default function PerfilCliente() {
               {/* Action Button */}
               <Button 
                 onClick={() => navigate(`/agendamentos/novo?cliente=${cliente.id}&nome=${encodeURIComponent(cliente.nome)}`)}
-                className="w-full bg-rose-500 hover:bg-rose-600 text-white shadow-md"
+                className="w-full bg-rose-400 hover:bg-rose-600 text-white shadow-md"
               >
                 <Calendar className="h-4 w-4 mr-2" />
                 Agendar Procedimento
@@ -2418,7 +2418,7 @@ export default function PerfilCliente() {
                       alert('Erro ao salvar anamnese. Tente novamente.')
                     }
                   }}
-                  className="bg-rose-500 hover:bg-rose-600 text-white shadow-md"
+                  className="bg-rose-400 w-full md:w-auto hover:bg-rose-600 text-white shadow-md"
                 >
                   Salvar Anamnese
                 </Button>

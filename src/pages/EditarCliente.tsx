@@ -256,7 +256,7 @@ export default function EditarCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/dashboard') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <LayoutDashboard className="h-5 w-5" />
@@ -267,7 +267,7 @@ export default function EditarCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/clientes') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Users className="h-5 w-5" />
@@ -278,7 +278,7 @@ export default function EditarCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/agendamentos') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Calendar className="h-5 w-5" />
@@ -289,7 +289,7 @@ export default function EditarCliente() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/procedimentos') 
                 ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
-                : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
+                : 'text-slate-600 hover:bg-rose-100 hover:text-slate-800'
             }`}
           >
             <Scissors className="h-5 w-5" />
