@@ -17,7 +17,9 @@ import {
   Phone,
   MapPin,
   FileText,
-  Scissors
+  Scissors,
+  Camera,
+  Upload
 } from 'lucide-react'
 
 interface QuestionState {
@@ -188,8 +190,19 @@ export default function PerfilCliente() {
     ocupacao: string | null
     endereco: string | null
     cpf: string | null
+    fotoUrl: string | null
     clienteDesde: string
   } | null>(null)
+  const [uploadingFoto, setUploadingFoto] = useState(false)
+
+  // Função helper para formatar data sem problemas de timezone
+  const formatarData = (dataISO: string | null): string | null => {
+    if (!dataISO) return null
+    // Dividir a string YYYY-MM-DD em partes e criar data localmente
+    const [ano, mes, dia] = dataISO.split('-').map(Number)
+    const data = new Date(ano, mes - 1, dia)
+    return data.toLocaleDateString('pt-BR')
+  }
 
   // Carregar dados do cliente e anamneses
   useEffect(() => {
@@ -209,9 +222,7 @@ export default function PerfilCliente() {
 
       if (error) throw error
       if (data) {
-        const dataNascimentoFormatada = data.data_nascimento 
-          ? new Date(data.data_nascimento).toLocaleDateString('pt-BR')
-          : null
+        const dataNascimentoFormatada = formatarData(data.data_nascimento)
         
         const clienteDesde = data.cliente_desde
           ? new Date(data.cliente_desde).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
@@ -225,12 +236,74 @@ export default function PerfilCliente() {
           ocupacao: data.ocupacao,
           endereco: data.endereco,
           cpf: data.cpf,
+          fotoUrl: data.foto_url || null,
           clienteDesde
         })
       }
     } catch (error: any) {
       console.error('Erro ao carregar cliente:', error)
       alert('Erro ao carregar dados do cliente.')
+    }
+  }
+
+  const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !cliente) return
+    
+    const file = e.target.files[0]
+    
+    // Validar tamanho (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 5MB')
+      return
+    }
+
+    // Validar tipo
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor, selecione uma imagem')
+      return
+    }
+
+    setUploadingFoto(true)
+    
+    try {
+      // Criar nome único para o arquivo
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${cliente.id}-${Date.now()}.${fileExt}`
+      const filePath = `clientes/${fileName}`
+
+      // Upload para Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('fotos-clientes')
+        .upload(filePath, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      // Obter URL pública da imagem
+      const { data: { publicUrl } } = supabase.storage
+        .from('fotos-clientes')
+        .getPublicUrl(filePath)
+
+      // Atualizar no banco de dados
+      const { error: updateError } = await supabase
+        .from('clientes')
+        .update({ foto_url: publicUrl })
+        .eq('id', cliente.id)
+
+      if (updateError) throw updateError
+
+      // Atualizar estado local
+      setCliente(prev => prev ? { ...prev, fotoUrl: publicUrl } : null)
+      
+      alert('Foto atualizada com sucesso!')
+    } catch (error: any) {
+      console.error('Erro ao fazer upload da foto:', error)
+      alert('Erro ao fazer upload da foto. Tente novamente.')
+    } finally {
+      setUploadingFoto(false)
+      // Limpar input
+      if (e.target) {
+        e.target.value = ''
+      }
     }
   }
 
@@ -292,6 +365,10 @@ export default function PerfilCliente() {
       }
     }
   }
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    navigate('/login')
+  }
 
   const isActive = (path: string) => location.pathname === path
 
@@ -324,20 +401,13 @@ export default function PerfilCliente() {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className="p-4 lg:p-6 border-b border-amber-200 flex items-center justify-between">
+        <div className="p-4 lg:p-6 border-b border-amber-200 flex items-center justify-center">
           <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="h-6 w-6 text-amber-600" />
             <div>
-              <h1 className="text-xl font-bold text-slate-800">Estética</h1>
-              <p className="text-xs text-slate-500">Gestão de Clientes</p>
+             <img src="/assets/logo.png" width={150} alt="" />
             </div>
           </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 hover:bg-amber-100 rounded-lg transition-colors"
-          >
-            <X className="h-5 w-5 text-slate-600" />
-          </button>
+     
         </div>
 
         {/* Navigation */}
@@ -386,11 +456,16 @@ export default function PerfilCliente() {
             <Scissors className="h-5 w-5" />
             <span>Procedimentos</span>
           </button>
+          <button onClick={handleLogout} className='bg-neutral-400 hover:bg-neutral-500 mt-5 text-white shadow-md w-full p-2 rounded-lg'>
+            <p className='text-white font-medium'>Sair</p>
+          </button>
         </nav>
 
+ 
+           
         {/* Footer */}
         <div className="p-4 border-t border-amber-200">
-          <p className="text-xs text-slate-500">© 2024 Estética Pro</p>
+          <p className="text-xs text-slate-500">© @amesq01</p>
         </div>
       </aside>
 
@@ -406,8 +481,8 @@ export default function PerfilCliente() {
               <Menu className="h-6 w-6 text-slate-700" />
             </button>
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-600" />
-              <h1 className="text-lg font-bold text-slate-800">Estética</h1>
+              <img src="/assets/logo.png" width={25} alt="" />
+              <h1 className="text-lg font-bold text-slate-800">Liomara Nogueira - Estética Avançada</h1>
             </div>
             <div className="w-10" />
           </div>
@@ -428,9 +503,33 @@ export default function PerfilCliente() {
           <Card className="bg-white border-amber-200/50 shadow-sm mb-6">
             <CardContent className="p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-6">
-                {/* Avatar */}
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0">
-                  <User className="h-10 w-10 sm:h-12 sm:w-12 text-rose-600" />
+                {/* Avatar com Foto */}
+                <div className="relative group">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-rose-100 flex items-center justify-center shrink-0 overflow-hidden border-2 border-rose-200">
+                    {cliente.fotoUrl ? (
+                      <img 
+                        src={cliente.fotoUrl} 
+                        alt={cliente.nome}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-10 w-10 sm:h-12 sm:w-12 text-rose-600" />
+                    )}
+                  </div>
+                  <label className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFotoUpload}
+                      disabled={uploadingFoto}
+                    />
+                    {uploadingFoto ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                    ) : (
+                      <Camera className="h-6 w-6 text-white" />
+                    )}
+                  </label>
                 </div>
                 
                 {/* Client Info */}
@@ -443,23 +542,23 @@ export default function PerfilCliente() {
               {/* Contact Details */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <div className="flex items-center gap-3">
-                  <Phone className="h-5 w-5 text-slate-500 flex-shrink-0" />
+                  <Phone className="h-5 w-5 text-slate-500 shrink-0" />
                   <span className="text-slate-700">{cliente.telefone}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-slate-500 flex-shrink-0" />
+                  <Calendar className="h-5 w-5 text-slate-500 shrink-0" />
                   <span className="text-slate-700">{cliente.dataNascimento}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <MapPin className="h-5 w-5 text-slate-500 flex-shrink-0" />
+                  <MapPin className="h-5 w-5 text-slate-500 shrink-0" />
                   <span className="text-slate-700">{cliente.endereco}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <User className="h-5 w-5 text-slate-500 flex-shrink-0" />
+                  <User className="h-5 w-5 text-slate-500 shrink-0" />
                   <span className="text-slate-700">{cliente.ocupacao}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-slate-500 flex-shrink-0" />
+                  <FileText className="h-5 w-5 text-slate-500 shrink-0" />
                   <span className="text-slate-700">{cliente.cpf}</span>
                 </div>
               </div>
@@ -2087,126 +2186,8 @@ export default function PerfilCliente() {
                       <div className="md:col-span-3 space-y-4">
                         {/* Silhueta do Corpo Humano */}
                         <div className="flex items-center justify-center">
-                          <div className="w-32 h-80 bg-white flex items-center justify-center border-4 border-black p-2">
-                            <svg
-                              viewBox="0 0 100 200"
-                              className="w-full h-full"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              {/* Silhueta Masculina/Neutra em Bege/Pêssego */}
-                              {/* Cabeça */}
-                              <ellipse cx="50" cy="12" rx="11" ry="13" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="2"/>
-                              
-                              {/* Orelhas */}
-                              <ellipse cx="38" cy="15" rx="3" ry="5" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="1.5"/>
-                              <ellipse cx="62" cy="15" rx="3" ry="5" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="1.5"/>
-                              
-                              {/* Pescoço */}
-                              <rect x="46" y="22" width="8" height="6" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="1.5"/>
-                              
-                              {/* Torso - Ombro largo, cintura definida */}
-                              <path
-                                d="M 50 28 Q 32 28 28 45 Q 26 60 28 75 Q 30 90 32 100 Q 34 110 36 115 Q 38 120 40 122 L 60 122 Q 62 120 64 115 Q 66 110 68 100 Q 70 90 72 75 Q 74 60 72 45 Q 68 28 50 28 Z"
-                                fill="#F5D5C8"
-                                stroke="#E8C4B0"
-                                strokeWidth="2"
-                              />
-                              
-                              {/* Indicação de músculos abdominais */}
-                              <path
-                                d="M 40 85 L 60 85 M 40 95 L 60 95"
-                                stroke="#E8C4B0"
-                                strokeWidth="1"
-                                opacity="0.5"
-                              />
-                              
-                              {/* Braço Esquerdo - Musculoso */}
-                              <path
-                                d="M 28 45 Q 18 48 12 58 Q 8 68 10 78 Q 12 88 16 95"
-                                fill="none"
-                                stroke="#E8C4B0"
-                                strokeWidth="3.5"
-                                strokeLinecap="round"
-                              />
-                              <ellipse cx="14" cy="98" rx="6" ry="9" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="2"/>
-                              
-                              {/* Mão Esquerda */}
-                              <path
-                                d="M 10 105 Q 8 108 9 110 Q 10 112 12 113 M 9 110 Q 7 112 8 114 Q 9 116 11 117 M 8 114 Q 6 116 7 118 Q 8 120 10 121 M 7 118 Q 5 120 6 122 Q 7 124 9 125"
-                                fill="none"
-                                stroke="#E8C4B0"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                              />
-                              
-                              {/* Braço Direito - Musculoso */}
-                              <path
-                                d="M 72 45 Q 82 48 88 58 Q 92 68 90 78 Q 88 88 84 95"
-                                fill="none"
-                                stroke="#E8C4B0"
-                                strokeWidth="3.5"
-                                strokeLinecap="round"
-                              />
-                              <ellipse cx="86" cy="98" rx="6" ry="9" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="2"/>
-                              
-                              {/* Mão Direita */}
-                              <path
-                                d="M 90 105 Q 92 108 91 110 Q 90 112 88 113 M 91 110 Q 93 112 92 114 Q 91 116 89 117 M 92 114 Q 94 116 93 118 Q 92 120 90 121 M 93 118 Q 95 120 94 122 Q 93 124 91 125"
-                                fill="none"
-                                stroke="#E8C4B0"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                              />
-                              
-                              {/* Quadril */}
-                              <path
-                                d="M 40 122 Q 38 125 36 128 Q 34 131 36 134 Q 38 137 40 140 L 60 140 Q 62 137 64 134 Q 66 131 64 128 Q 62 125 60 122"
-                                fill="#F5D5C8"
-                                stroke="#E8C4B0"
-                                strokeWidth="2"
-                              />
-                              
-                              {/* Perna Esquerda - Musculosa */}
-                              <path
-                                d="M 40 140 Q 38 145 36 150 Q 34 155 36 160 Q 38 165 40 170"
-                                fill="none"
-                                stroke="#E8C4B0"
-                                strokeWidth="3.5"
-                                strokeLinecap="round"
-                              />
-                              <ellipse cx="38" cy="175" rx="7" ry="12" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="2"/>
-                              
-                              {/* Pé Esquerdo */}
-                              <ellipse cx="35" cy="190" rx="8" ry="5" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="2"/>
-                              <path
-                                d="M 27 190 Q 27 192 29 193 Q 31 194 33 193 M 29 193 Q 29 195 31 196 Q 33 197 35 196 M 31 196 Q 31 198 33 199 Q 35 200 37 199 M 33 199 Q 33 201 35 202 Q 37 203 39 202"
-                                fill="none"
-                                stroke="#E8C4B0"
-                                strokeWidth="1"
-                                strokeLinecap="round"
-                              />
-                              
-                              {/* Perna Direita - Musculosa */}
-                              <path
-                                d="M 60 140 Q 62 145 64 150 Q 66 155 64 160 Q 62 165 60 170"
-                                fill="none"
-                                stroke="#E8C4B0"
-                                strokeWidth="3.5"
-                                strokeLinecap="round"
-                              />
-                              <ellipse cx="62" cy="175" rx="7" ry="12" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="2"/>
-                              
-                              {/* Pé Direito */}
-                              <ellipse cx="65" cy="190" rx="8" ry="5" fill="#F5D5C8" stroke="#E8C4B0" strokeWidth="2"/>
-                              <path
-                                d="M 73 190 Q 73 192 71 193 Q 69 194 67 193 M 71 193 Q 71 195 69 196 Q 67 197 65 196 M 69 196 Q 69 198 67 199 Q 65 200 63 199 M 67 199 Q 67 201 65 202 Q 63 203 61 202"
-                                fill="none"
-                                stroke="#E8C4B0"
-                                strokeWidth="1"
-                                strokeLinecap="round"
-                              />
-                            </svg>
+                          <div className="w-32 h-80 bg-white flex items-center justify-center  border-black p-2">
+                           <img src="/assets/corpo.png" alt="" />
                           </div>
                         </div>
 

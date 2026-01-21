@@ -111,14 +111,16 @@ export default function Dashboard() {
 
       // Organizar agendamentos de hoje por proximidade da data/hora atual
       const agora = new Date()
+      const agoraTimestamp = agora.getTime()
+      
       const agendamentosFormatados = (agendamentosHojeData || []).map(ag => {
         const clienteData = Array.isArray(ag.clientes) ? ag.clientes[0] : ag.clientes
         const procedimentoData = Array.isArray(ag.procedimentos) ? ag.procedimentos[0] : ag.procedimentos
         
-        // Criar objeto Date para o agendamento
+        // Criar objeto Date para o agendamento (hoje na hora especificada)
         const [horas, minutos] = ag.horario.split(':').map(Number)
-        const dataAgendamento = new Date(hoje)
-        dataAgendamento.setHours(horas, minutos, 0, 0)
+        const dataAgendamento = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), horas, minutos, 0, 0)
+        const agendamentoTimestamp = dataAgendamento.getTime()
 
         return {
           id: ag.id,
@@ -128,48 +130,85 @@ export default function Dashboard() {
           horario: ag.horario,
           status: ag.status,
           observacoes: ag.observacoes,
-          dataAgendamento: dataAgendamento.getTime() // Para ordenação
+          timestamp: agendamentoTimestamp // Para ordenação
         }
       }).sort((a, b) => {
-        // Ordenar por proximidade da data/hora atual (mais próximo primeiro)
-        const diffA = Math.abs(a.dataAgendamento - agora.getTime())
-        const diffB = Math.abs(b.dataAgendamento - agora.getTime())
-        return diffA - diffB
-      }).map(({ dataAgendamento, ...rest }) => rest) // Remover campo auxiliar
-
-      // Encontrar próximo agendamento (mais próximo no futuro)
-      const proximosFuturos = agendamentosFormatados.filter(ag => {
-        const [horas, minutos] = ag.horario.split(':').map(Number)
-        const dataAgendamento = new Date(hoje)
-        dataAgendamento.setHours(horas, minutos, 0, 0)
-        return dataAgendamento > agora
+        // Ordenar por horário crescente (mais cedo primeiro)
+        return a.timestamp - b.timestamp
       })
 
-      const proximo = proximosFuturos.length > 0 
-        ? {
-            horario: proximosFuturos[0].horario,
-            cliente: proximosFuturos[0].cliente,
-            servico: proximosFuturos[0].servico
+      // Buscar próximo agendamento agendado mais próximo (de hoje ou futuro)
+      // Primeiro buscar todos os agendamentos agendados de hoje ou futuro
+      const { data: todosAgendamentosFuturos } = await supabase
+        .from('agendamentos')
+        .select(`
+          *,
+          clientes!agendamentos_cliente_id_fkey(nome),
+          procedimentos!agendamentos_procedimento_id_fkey(descricao)
+        `)
+        .eq('status', 'Agendado')
+        .gte('data', hojeISO)
+        .order('data', { ascending: true })
+        .order('horario', { ascending: true })
+
+      let proximo = {
+        horario: '--:--',
+        cliente: 'Nenhum',
+        servico: 'agendamento'
+      }
+
+      if (todosAgendamentosFuturos && todosAgendamentosFuturos.length > 0) {
+        // Encontrar o primeiro agendamento que ainda não passou
+        for (const ag of todosAgendamentosFuturos) {
+          const clienteData = Array.isArray(ag.clientes) ? ag.clientes[0] : ag.clientes
+          const procedimentoData = Array.isArray(ag.procedimentos) ? ag.procedimentos[0] : ag.procedimentos
+          
+          // Verificar se é hoje e se já passou
+          const [horas, minutos] = ag.horario.split(':').map(Number)
+          let dataAgendamentoProximo: Date
+          
+          if (ag.data === hojeISO) {
+            // Se for hoje, usar a hora específica de hoje
+            dataAgendamentoProximo = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), horas, minutos, 0, 0)
+          } else {
+            // Se for futuro, criar data completa
+            const [ano, mes, dia] = ag.data.split('-').map(Number)
+            dataAgendamentoProximo = new Date(ano, mes - 1, dia, horas, minutos, 0, 0)
           }
-        : {
-            horario: '--:--',
-            cliente: 'Nenhum',
-            servico: 'agendamento'
+          
+          // Se ainda não passou, usar este como próximo
+          if (dataAgendamentoProximo.getTime() > agoraTimestamp) {
+            proximo = {
+              horario: ag.horario,
+              cliente: clienteData?.nome || 'Cliente não encontrado',
+              servico: procedimentoData?.descricao || 'Procedimento não encontrado'
+            }
+            break // Parar no primeiro que encontrar
           }
+        }
+      }
+      
+      // Remover campo auxiliar timestamp antes de salvar
+      const agendamentosFinais = agendamentosFormatados.map(({ timestamp, ...rest }) => rest)
 
       setStats({
         totalClientes: totalClientes || 0,
-        agendamentosHoje: agendamentosFormatados.length,
+        agendamentosHoje: agendamentosFinais.length,
         concluidosMes: concluidosMes || 0,
         proximo
       })
 
-      setAgendamentosHoje(agendamentosFormatados)
+      setAgendamentosHoje(agendamentosFinais)
     } catch (error: any) {
       console.error('Erro ao carregar dados do dashboard:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    navigate('/login')
   }
 
   if (!user) {
@@ -201,20 +240,15 @@ export default function Dashboard() {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className="p-4 lg:p-6 border-b border-amber-200 flex items-center justify-between">
+        <div className="p-4 lg:p-6 border-b border-amber-200 flex items-center justify-center">
           <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="h-6 w-6 text-amber-600" />
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">Estética</h1>
-              <p className="text-xs text-slate-500">Gestão de Clientes</p>
+            
+            <div className='flex justify-center flex-col items-center w-full'>
+              <img src="/assets/logo.png" width={150} alt="" />
+              
             </div>
           </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 hover:bg-amber-100 rounded-lg transition-colors"
-          >
-            <X className="h-5 w-5 text-slate-600" />
-          </button>
+          
         </div>
 
         {/* Navigation */}
@@ -223,7 +257,7 @@ export default function Dashboard() {
             onClick={() => navigate('/dashboard')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/dashboard') 
-                ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
+                ? 'bg-rose-300 border border-rose-200 text-slate-800 font-medium' 
                 : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
             }`}
           >
@@ -234,7 +268,7 @@ export default function Dashboard() {
             onClick={() => navigate('/clientes')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/clientes') 
-                ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
+                ? 'bg-rose-300 border border-rose-200 text-slate-800 font-medium' 
                 : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
             }`}
           >
@@ -245,7 +279,7 @@ export default function Dashboard() {
             onClick={() => navigate('/agendamentos')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/agendamentos') 
-                ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
+                ? 'bg-rose-300 border border-rose-200 text-slate-800 font-medium' 
                 : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
             }`}
           >
@@ -256,18 +290,23 @@ export default function Dashboard() {
             onClick={() => navigate('/procedimentos')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/procedimentos') 
-                ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
+                ? 'bg-rose-300 border border-rose-200 text-slate-800 font-medium' 
                 : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
             }`}
           >
             <Scissors className="h-5 w-5" />
             <span>Procedimentos</span>
           </button>
+
+          <button onClick={handleLogout} className='bg-neutral-400 mt-5 hover:bg-neutral-500 text-white shadow-md w-full p-2 rounded-lg'>
+            <p className='text-white font-medium'>Sair</p>
+          </button>
+         
         </nav>
 
         {/* Footer */}
         <div className="p-4 border-t border-amber-200">
-          <p className="text-xs text-slate-500">© 2024 Estética Pro</p>
+          <p className="text-xs text-slate-500">© @amesq01</p>
         </div>
       </aside>
 
@@ -283,15 +322,15 @@ export default function Dashboard() {
               <Menu className="h-6 w-6 text-slate-700" />
             </button>
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-600" />
-              <h1 className="text-lg font-bold text-slate-800">Estética</h1>
+              <img src="/assets/logo.png" width={25} alt="" />
+              <h1 className="text-lg font-bold text-slate-800">Liomara Nogueira - Estética Avançada</h1>
             </div>
             <Button 
               size="sm" 
-              onClick={() => navigate('/clientes/novo')}
-              className="bg-rose-500 hover:bg-rose-600 text-white shadow-md"
+              onClick={handleLogout}
+              className="bg-neutral-900 hover:bg-neutral-800 text-white shadow-md"
             >
-              <Plus className="h-4 w-4" />
+              <p className='text-white'>Sair</p>
             </Button>
           </div>
 
@@ -299,7 +338,7 @@ export default function Dashboard() {
           <div className="hidden lg:flex justify-between items-start mb-8">
             <div>
               <h1 className="text-3xl lg:text-4xl font-bold text-slate-800 mb-2">Dashboard</h1>
-              <p className="text-slate-600">Bem-vinda! Aqui está o resumo da sua clínica.</p>
+              <p className="text-slate-600">Bem-vinda! Aqui está o resumo de suas atividades.</p>
             </div>
             <Button 
               onClick={() => navigate('/clientes/novo')}
@@ -313,7 +352,7 @@ export default function Dashboard() {
           {/* Header Mobile - Título */}
           <div className="lg:hidden mb-6">
             <h1 className="text-2xl font-bold text-slate-800 mb-1">Dashboard</h1>
-            <p className="text-sm text-slate-600">Bem-vinda! Aqui está o resumo da sua clínica.</p>
+            <p className="text-sm text-slate-600">Bem-vinda! Aqui está o resumo de suas atividades.</p>
           </div>
 
           {/* Stats Cards */}
@@ -387,7 +426,7 @@ export default function Dashboard() {
           <Card className="bg-white border-amber-200/50 shadow-sm">
             <CardContent className="p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
-                <h2 className="text-lg sm:text-xl font-bold text-slate-800">Agendamentos de Hoje</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-800">Próximos Agendamentos</h2>
                 <button 
                   onClick={() => navigate('/agendamentos')}
                   className="text-amber-600 hover:text-amber-700 text-sm font-medium"
@@ -437,7 +476,7 @@ export default function Dashboard() {
                           )}
                         </div>
                       </div>
-                      <span className="px-2 sm:px-3 py-1 bg-rose-100 text-rose-700 text-xs font-medium rounded-full border border-rose-200 self-start sm:self-auto">
+                      <span className="px-2 sm:px-3 py-1 bg-rose-300 text-white text-xs font-medium rounded-full border border-rose-200 self-start sm:self-auto">
                         {agendamento.status}
                       </span>
                     </div>

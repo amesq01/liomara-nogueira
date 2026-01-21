@@ -58,6 +58,7 @@ export default function Clientes() {
     cpf: string | null
     dataNascimento: string | null
     ocupacao: string | null
+    fotoUrl: string | null
   }>>([])
 
   // Carregar clientes do Supabase
@@ -76,8 +77,14 @@ export default function Clientes() {
           telefone: cliente.telefone || '',
           endereco: cliente.endereco || '',
           cpf: cliente.cpf || '',
-          dataNascimento: cliente.data_nascimento || null,
-          ocupacao: cliente.ocupacao || ''
+          dataNascimento: cliente.data_nascimento 
+            ? (() => {
+                const [ano, mes, dia] = cliente.data_nascimento.split('-').map(Number)
+                return new Date(ano, mes - 1, dia).toLocaleDateString('pt-BR')
+              })()
+            : null,
+          ocupacao: cliente.ocupacao || '',
+          fotoUrl: cliente.foto_url || null
         })))
       }
     } catch (error: any) {
@@ -109,6 +116,11 @@ export default function Clientes() {
     )
   }
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    navigate('/login')
+  }
+
   return (
     <div className="min-h-screen flex relative" style={{ backgroundColor: '#FBFAF9' }}>
       {/* Overlay para mobile */}
@@ -127,19 +139,16 @@ export default function Clientes() {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className="p-4 lg:p-6 border-b border-amber-200 flex items-center justify-between">
+        <div className="p-4 lg:p-6 border-b border-amber-200 flex items-center justify-center">
           <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="h-6 w-6 text-amber-600" />
             <div>
-              <h1 className="text-xl font-bold text-slate-800">Estética</h1>
-              <p className="text-xs text-slate-500">Gestão de Clientes</p>
+              <img src="/assets/logo.png" width={150} alt="" />
             </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden p-2 hover:bg-amber-100 rounded-lg transition-colors"
           >
-            <X className="h-5 w-5 text-slate-600" />
           </button>
         </div>
 
@@ -160,7 +169,7 @@ export default function Clientes() {
             onClick={() => navigate('/clientes')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
               isActive('/clientes') 
-                ? 'bg-rose-100 border border-rose-200 text-slate-800 font-medium' 
+                ? 'bg-rose-300 border border-rose-200 text-slate-800 font-medium' 
                 : 'text-slate-600 hover:bg-amber-50 hover:text-slate-800'
             }`}
           >
@@ -189,11 +198,14 @@ export default function Clientes() {
             <Scissors className="h-5 w-5" />
             <span>Procedimentos</span>
           </button>
+          <button onClick={handleLogout} className='bg-neutral-400 hover:bg-neutral-500 mt-5 text-white shadow-md w-full p-2 rounded-lg'>
+            <p className='text-white font-medium'>Sair</p>
+          </button>
         </nav>
 
         {/* Footer */}
         <div className="p-4 border-t border-amber-200">
-          <p className="text-xs text-slate-500">© 2024 Estética Pro</p>
+          <p className="text-xs text-slate-500">© @amesq01</p>
         </div>
       </aside>
 
@@ -209,15 +221,16 @@ export default function Clientes() {
               <Menu className="h-6 w-6 text-slate-700" />
             </button>
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-600" />
-              <h1 className="text-lg font-bold text-slate-800">Estética</h1>
+              <img src="/assets/logo.png" width={25} alt="" />
+              <h1 className="text-lg font-bold text-slate-800">Liomara Nogueira - Estética Avançada</h1>
             </div>
                 <Button 
                   size="sm" 
                   onClick={() => navigate('/clientes/novo')}
-                  className="bg-rose-500 hover:bg-rose-600 text-white shadow-md"
+                  className="bg-rose-400 hover:bg-rose-600 text-white shadow-md"
                 >
               <Plus className="h-4 w-4" />
+              <p className='ml-2'>Novo Cliente</p>
             </Button>
           </div>
 
@@ -275,9 +288,17 @@ export default function Clientes() {
                   <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center gap-4">
                       {/* Avatar */}
-                      <div className="flex-shrink-0">
-                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-rose-100 flex items-center justify-center">
-                          <User className="h-6 w-6 sm:h-7 sm:w-7 text-rose-600" />
+                      <div className="shrink-0">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-rose-100 flex items-center justify-center overflow-hidden border-2 border-rose-200">
+                          {cliente.fotoUrl ? (
+                            <img 
+                              src={cliente.fotoUrl} 
+                              alt={cliente.nome}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="h-6 w-6 sm:h-7 sm:w-7 text-rose-600" />
+                          )}
                         </div>
                       </div>
 

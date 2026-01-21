@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS clientes (
   telefone TEXT,
   endereco TEXT,
   cpf TEXT,
+  foto_url TEXT,
   cliente_desde TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
