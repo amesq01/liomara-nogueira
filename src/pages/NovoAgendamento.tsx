@@ -5,12 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
-  Sparkles, 
   LayoutDashboard, 
   Users, 
   Calendar,
   Menu,
-  X,
   ArrowLeft,
   Clock,
   Scissors
@@ -242,12 +240,6 @@ export default function NovoAgendamento() {
               <img src="/assets/logo.png" width={150} alt="" />
             </div>
           </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 hover:bg-amber-100 rounded-lg transition-colors"
-          >
-            <X className="h-5 w-5 text-slate-600" />
-          </button>
         </div>
 
         {/* Navigation */}

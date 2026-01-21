@@ -5,13 +5,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { 
-  Sparkles, 
   LayoutDashboard, 
   Users, 
   Calendar,
   User,
   Menu,
-  X,
   ArrowLeft,
   Phone,
   MapPin,
@@ -87,6 +85,11 @@ export default function NovoCliente() {
     }
   }
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    navigate('/login')
+  }
+
   const isActive = (path: string) => location.pathname === path
 
   if (!user) {
@@ -118,20 +121,13 @@ export default function NovoCliente() {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className="p-4 lg:p-6 border-b border-amber-200 flex items-center justify-between">
+        <div className="p-4 lg:p-6 border-b border-amber-200 flex items-center justify-center">
           <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="h-6 w-6 text-amber-600" />
             <div>
-              <h1 className="text-xl font-bold text-slate-800">Estética</h1>
-              <p className="text-xs text-slate-500">Gestão de Clientes</p>
+              <img src="/assets/logo.png" width={150} alt="" />
             </div>
           </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 hover:bg-amber-100 rounded-lg transition-colors"
-          >
-            <X className="h-5 w-5 text-slate-600" />
-          </button>
+       
         </div>
 
         {/* Navigation */}
@@ -180,11 +176,15 @@ export default function NovoCliente() {
             <Scissors className="h-5 w-5" />
             <span>Procedimentos</span>
           </button>
+
+          <button onClick={handleLogout} className='bg-neutral-400 hover:bg-neutral-500 mt-5 text-white shadow-md w-full p-2 rounded-lg'>
+            <p className='text-white font-medium'>Sair</p>
+          </button>
         </nav>
 
         {/* Footer */}
         <div className="p-4 border-t border-amber-200">
-          <p className="text-xs text-slate-500">© 2024 Estética Pro</p>
+          <p className="text-xs text-slate-500">© @amesq01</p>
         </div>
       </aside>
 
@@ -200,8 +200,7 @@ export default function NovoCliente() {
               <Menu className="h-6 w-6 text-slate-700" />
             </button>
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-600" />
-              <h1 className="text-lg font-bold text-slate-800">Estética</h1>
+              <h1 className="text-lg font-bold text-slate-800">Liomara Nogueira - Estética Avançada</h1>
             </div>
             <div className="w-10" />
           </div>

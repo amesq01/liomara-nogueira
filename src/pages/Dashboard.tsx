@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   Plus,
   Menu,
-  X,
   Scissors
 } from 'lucide-react'
 

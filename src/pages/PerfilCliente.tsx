@@ -6,20 +6,17 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { 
-  Sparkles, 
   LayoutDashboard, 
   Users, 
   Calendar,
   User,
   Menu,
-  X,
   ArrowLeft,
   Phone,
   MapPin,
   FileText,
   Scissors,
   Camera,
-  Upload
 } from 'lucide-react'
 
 interface QuestionState {
