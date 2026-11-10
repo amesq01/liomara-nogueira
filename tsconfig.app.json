@@ -27,8 +27,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    /* Path mapping */
-    "baseUrl": ".",
+    /* Path mapping. Paths are relative to this file; baseUrl is deprecated in TypeScript 6. */
     "paths": {
       "@/*": [
         "./src/*"

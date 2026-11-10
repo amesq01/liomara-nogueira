@@ -113,7 +113,7 @@ async function buscarTodosAgendamentos(colunas: string) {
 
     if (error) throw error
 
-    const lote = (data ?? []) as LinhaAgendamento[]
+    const lote = (data ?? []) as unknown as LinhaAgendamento[]
     linhas.push(...lote)
     if (lote.length === 0) break
 
