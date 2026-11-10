@@ -142,3 +142,13 @@ CREATE POLICY "Usuários autenticados podem atualizar anamneses" ON anamneses
 
 CREATE POLICY "Usuários autenticados podem deletar anamneses" ON anamneses
   FOR DELETE USING (auth.role() = 'authenticated');
+
+-- Data API (PostgREST / supabase-js)
+-- A partir de 30/10, tabelas novas em "public" não recebem GRANT automático.
+-- Sem estes privilégios, a API responde "permission denied" mesmo com RLS.
+-- O papel anon fica de fora: o app só lê e grava depois do login, e as
+-- tabelas têm CPF, telefone e anamnese. O RLS continua valendo por cima.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.clientes TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.procedimentos TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.agendamentos TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.anamneses TO authenticated, service_role;

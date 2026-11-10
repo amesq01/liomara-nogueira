@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 
 type Status = 'Todos' | 'Agendado' | 'Concluído' | 'Cancelado'
+type StatusAgendamento = Exclude<Status, 'Todos'>
 
 interface Agendamento {
   id: string
@@ -28,8 +29,100 @@ interface Agendamento {
   servico: string
   data: string
   horario: string
-  status: 'Agendado' | 'Concluído' | 'Cancelado'
+  status: StatusAgendamento
   telefone: string
+}
+
+function statusCanonico(status: string | null | undefined): StatusAgendamento {
+  const valor = (status ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+
+  if (valor.startsWith('conclu')) return 'Concluído'
+  if (valor.startsWith('cancel')) return 'Cancelado'
+  return 'Agendado'
+}
+
+function formatarData(valor: string | null | undefined) {
+  const iso = (valor ?? '').slice(0, 10)
+  const [ano, mes, dia] = iso.split('-').map(Number)
+  if (!ano || !mes || !dia) return valor || ''
+  return new Date(ano, mes - 1, dia).toLocaleDateString('pt-BR')
+}
+
+function formatarHorario(valor: string | null | undefined) {
+  const [hora, minuto] = (valor ?? '').split(':')
+  if (!hora || !minuto) return valor || ''
+  return `${hora}:${minuto}`
+}
+
+function timestampAgendamento(dateStr: string, timeStr: string) {
+  const [dia, mes, ano] = (dateStr || '').split('/').map(Number)
+  const [hora, minuto] = (timeStr || '').split(':').map(Number)
+  if (![dia, mes, ano, hora, minuto].every(Number.isFinite)) return Number.MAX_SAFE_INTEGER
+  return new Date(ano, mes - 1, dia, hora, minuto).getTime()
+}
+
+function primeiroRelacionado<T>(valor: T | T[] | null | undefined): T | null {
+  if (Array.isArray(valor)) return valor[0] ?? null
+  return valor ?? null
+}
+
+type LinhaAgendamento = {
+  id: string
+  cliente_id: string | null
+  procedimento_id: string | null
+  data: string
+  horario: string | null
+  status: string | null
+  clientes?: { nome?: string | null; telefone?: string | null } | Array<{ nome?: string | null; telefone?: string | null }> | null
+  procedimentos?: { descricao?: string | null } | Array<{ descricao?: string | null }> | null
+}
+
+const COLUNAS_COM_RELACIONAMENTOS = `
+  id,
+  cliente_id,
+  procedimento_id,
+  data,
+  horario,
+  status,
+  clientes ( nome, telefone ),
+  procedimentos ( descricao )
+`
+
+const COLUNAS_SIMPLES = 'id, cliente_id, procedimento_id, data, horario, status'
+
+// O Supabase devolve no máximo 1000 linhas por pedido. Sem as páginas
+// seguintes, a lista ordenada pela data para no registro mais antigo que cabe
+// nesse limite e os agendamentos novos não aparecem.
+async function buscarTodosAgendamentos(colunas: string) {
+  const tamanho = 1000
+  const linhas: LinhaAgendamento[] = []
+  let inicio = 0
+
+  while (inicio < 100000) {
+    const { data, error, count } = await supabase
+      .from('agendamentos')
+      .select(colunas, { count: 'exact' })
+      .order('data', { ascending: true })
+      .order('horario', { ascending: true })
+      .order('id', { ascending: true })
+      .range(inicio, inicio + tamanho - 1)
+
+    if (error) throw error
+
+    const lote = (data ?? []) as LinhaAgendamento[]
+    linhas.push(...lote)
+    if (lote.length === 0) break
+
+    inicio += lote.length
+    if (count !== null && inicio >= count) break
+    if (count === null && lote.length < tamanho) break
+  }
+
+  return linhas
 }
 
 export default function Agendamentos() {
@@ -42,47 +135,103 @@ export default function Agendamentos() {
 
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Carregar agendamentos do Supabase
   const loadAgendamentos = async () => {
     setLoading(true)
+    setLoadError(null)
     try {
-      const { data, error } = await supabase
-        .from('agendamentos')
-        .select(`
-          *,
-          clientes!agendamentos_cliente_id_fkey(nome, telefone),
-          procedimentos!agendamentos_procedimento_id_fkey(descricao)
-        `)
-        .order('data', { ascending: true })
-        .order('horario', { ascending: true })
-
-      if (error) throw error
-      if (data) {
-        // Transformar dados do Supabase para o formato esperado
-        const agendamentosFormatados: Agendamento[] = data.map(ag => {
-          // Converter data de formato ISO para formato brasileiro
-          const dataObj = new Date(ag.data + 'T00:00:00')
-          const dataFormatada = dataObj.toLocaleDateString('pt-BR')
-          
-          // Acessar dados relacionados corretamente
-          const clienteData = Array.isArray(ag.clientes) ? ag.clientes[0] : ag.clientes
-          const procedimentoData = Array.isArray(ag.procedimentos) ? ag.procedimentos[0] : ag.procedimentos
-          
-          return {
-            id: ag.id,
-            cliente: clienteData?.nome || 'Cliente não encontrado',
-            servico: procedimentoData?.descricao || 'Procedimento não encontrado',
-            data: dataFormatada,
-            horario: ag.horario,
-            status: ag.status,
-            telefone: clienteData?.telefone || ''
-          }
-        })
-        setAgendamentos(agendamentosFormatados)
+      let linhas: LinhaAgendamento[]
+      try {
+        linhas = await buscarTodosAgendamentos(COLUNAS_COM_RELACIONAMENTOS)
+      } catch (erroRelacionamento) {
+        console.error('Falha ao carregar agendamentos com procedimentos:', erroRelacionamento)
+        linhas = await buscarTodosAgendamentos(COLUNAS_SIMPLES)
       }
+      const nomesProcedimentos = new Map<string, string>()
+      const nomesClientes = new Map<string, { nome: string; telefone: string }>()
+
+      for (const ag of linhas) {
+        const procedimento = primeiroRelacionado(ag.procedimentos)
+        if (ag.procedimento_id && procedimento?.descricao) {
+          nomesProcedimentos.set(ag.procedimento_id, procedimento.descricao)
+        }
+        const cliente = primeiroRelacionado(ag.clientes)
+        if (ag.cliente_id && cliente?.nome) {
+          nomesClientes.set(ag.cliente_id, {
+            nome: cliente.nome,
+            telefone: cliente.telefone || ''
+          })
+        }
+      }
+
+      const procedimentosFaltando = [...new Set(
+        linhas
+          .map(ag => ag.procedimento_id)
+          .filter((id): id is string => !!id && !nomesProcedimentos.has(id))
+      )]
+      if (procedimentosFaltando.length > 0) {
+        for (let i = 0; i < procedimentosFaltando.length; i += 100) {
+          const { data: procedimentos, error: erroProcedimentos } = await supabase
+            .from('procedimentos')
+            .select('id, descricao')
+            .in('id', procedimentosFaltando.slice(i, i + 100))
+
+          if (erroProcedimentos) {
+            console.error('Erro ao carregar procedimentos dos agendamentos:', erroProcedimentos)
+            break
+          }
+
+          procedimentos?.forEach(procedimento => {
+            if (procedimento.descricao) nomesProcedimentos.set(procedimento.id, procedimento.descricao)
+          })
+        }
+      }
+
+      const clientesFaltando = [...new Set(
+        linhas
+          .map(ag => ag.cliente_id)
+          .filter((id): id is string => !!id && !nomesClientes.has(id))
+      )]
+      if (clientesFaltando.length > 0) {
+        for (let i = 0; i < clientesFaltando.length; i += 100) {
+          const { data: clientes, error: erroClientes } = await supabase
+            .from('clientes')
+            .select('id, nome, telefone')
+            .in('id', clientesFaltando.slice(i, i + 100))
+
+          if (erroClientes) {
+            console.error('Erro ao carregar clientes dos agendamentos:', erroClientes)
+            break
+          }
+
+          clientes?.forEach(cliente => {
+            nomesClientes.set(cliente.id, {
+              nome: cliente.nome,
+              telefone: cliente.telefone || ''
+            })
+          })
+        }
+      }
+
+      setAgendamentos(linhas.map(ag => {
+        const cliente = ag.cliente_id ? nomesClientes.get(ag.cliente_id) : undefined
+        const servico = ag.procedimento_id ? nomesProcedimentos.get(ag.procedimento_id) : undefined
+
+        return {
+          id: ag.id,
+          cliente: cliente?.nome || 'Cliente não encontrado',
+          servico: servico || 'Procedimento não encontrado',
+          data: formatarData(ag.data),
+          horario: formatarHorario(ag.horario),
+          status: statusCanonico(ag.status),
+          telefone: cliente?.telefone || ''
+        }
+      }))
     } catch (error: any) {
       console.error('Erro ao carregar agendamentos:', error)
+      setLoadError(error?.message || 'Não foi possível carregar os agendamentos.')
     } finally {
       setLoading(false)
     }
@@ -121,8 +270,7 @@ export default function Agendamentos() {
   // Filtrar e ordenar agendamentos
   const agendamentosFiltrados = agendamentos
     .filter(ag => {
-      // Filtro por status
-      if (statusFilter !== 'Todos' && ag.status !== statusFilter) {
+      if (statusFilter !== 'Todos' && statusCanonico(ag.status) !== statusFilter) {
         return false
       }
       
@@ -152,41 +300,11 @@ export default function Agendamentos() {
         if (statusComparison !== 0) {
           return statusComparison
         }
-        
-        // Se o status for igual, ordena por proximidade da data/hora atual
-        const parseDateTime = (dateStr: string, timeStr: string) => {
-          // Converter data de "DD/MM/AAAA" e hora "HH:MM" para timestamp
-          const [day, month, year] = dateStr.split('/').map(Number)
-          const [hours, minutes] = timeStr.split(':').map(Number)
-          return new Date(year, month - 1, day, hours, minutes).getTime()
-        }
-        
-        const now = Date.now()
-        const dateTimeA = parseDateTime(a.data, a.horario)
-        const dateTimeB = parseDateTime(b.data, b.horario)
-        
-        // Calcular diferença absoluta em relação ao tempo atual
-        const diffA = Math.abs(dateTimeA - now)
-        const diffB = Math.abs(dateTimeB - now)
-        
-        // Menor diferença = mais próximo do atual = aparece primeiro
-        return diffA - diffB
       }
-      
-      // Se não estiver na aba "Todos", ordenar apenas por data/hora (mais próximo primeiro)
-      const parseDateTime = (dateStr: string, timeStr: string) => {
-        const [day, month, year] = dateStr.split('/').map(Number)
-        const [hours, minutes] = timeStr.split(':').map(Number)
-        return new Date(year, month - 1, day, hours, minutes).getTime()
-      }
-      
+
       const now = Date.now()
-      const dateTimeA = parseDateTime(a.data, a.horario)
-      const dateTimeB = parseDateTime(b.data, b.horario)
-      
-      const diffA = Math.abs(dateTimeA - now)
-      const diffB = Math.abs(dateTimeB - now)
-      
+      const diffA = Math.abs(timestampAgendamento(a.data, a.horario) - now)
+      const diffB = Math.abs(timestampAgendamento(b.data, b.horario) - now)
       return diffA - diffB
     })
 
@@ -226,24 +344,6 @@ export default function Agendamentos() {
 
     return () => subscription.unsubscribe()
   }, [navigate])
-
-  // Atualizar lista quando a página receber foco (quando voltar de criar/editar agendamento)
-  useEffect(() => {
-    const handleFocus = () => {
-      const stored = localStorage.getItem('agendamentos')
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored)
-          setAgendamentos(parsed)
-        } catch {
-          // Ignora erros
-        }
-      }
-    }
-
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [])
 
   const isActive = (path: string) => location.pathname === path
 
@@ -476,8 +576,10 @@ export default function Agendamentos() {
                   <Calendar className="h-16 w-16 text-slate-300 mx-auto mb-4" />
                   <p className="text-slate-500 text-lg mb-2">Nenhum agendamento encontrado</p>
                   <p className="text-sm text-slate-400">
-                    {searchQuery || statusFilter !== 'Todos' 
-                      ? 'Tente ajustar os filtros de busca' 
+                    {loadError
+                      ? loadError
+                      : searchQuery || statusFilter !== 'Todos'
+                      ? 'Tente ajustar os filtros de busca'
                       : 'Os agendamentos aparecerão aqui'}
                   </p>
                 </div>
